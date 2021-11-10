@@ -2,6 +2,8 @@ DIGITALIZACIÓN EDUCATIVA
 ==================
 # Herramienta para trasladar la evaluación al alumnado y fomentar la retroalimentación
 
+Accesible desde [aquí](https://colab.research.google.com/github/anderfrago/TrasladarNotasAlumnos/blob/main/2021_CompartirCompetenciasClave.ipynb)
+
  ### Colab que permite trasladar automáticamente las notas de la evolución a lo largo del curso, de manera individual, al alumnado a partir de un Sheet alojado en Google Drive (GDrive).
  ### Una vez finalizado el proceso, el alumnado recibe un correo. El correo da acceso a la carpeta compartida donde se ubica la hoja de evaluación.
  En caso de establecer *notas (comentarios) en las casillas* dentro del Sheet a compartir, el alumnado lo recibirá como comentarios con opción de respuesta o resolución. **Respondiendo a los comentarios se fomenta la retroalimentación del proceso de evaluación**. Al responder a los comentarios el docente recibe la notificación vía correo.
