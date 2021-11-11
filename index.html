@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digitalización educativa</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg ">
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarTogglerDemo01"
+            aria-controls="navbarTogglerDemo01" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarTogglerDemo01">
+            <a class="navbar-brand" href="#"><img src="./assets/logo.png">
+            </a>
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item ">
+                    Digitalización educativa
+                </li>
+            </ul>
+        </div>
+    </nav>
+    <div class="container-fluid">
+        <div class="row bg-light">
+            <div class="col-8 mx-auto">
+
+                <div class=" bg-light p-5">
+                    <h2 class="text-muted"> Herramienta para trasladar la evaluación al alumnado y fomentar la
+                        retroalimentación</h2>
+                    <div class="d-flex justify-content-center py-3 ">
+                        <a class="btn btn-outline-info"
+                            href="https://colab.research.google.com/github/anderfrago/TrasladarNotasAlumnos/blob/main/2021_CompartirCompetenciasClave.ipynb">
+                            Accesible desde aquí</a>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <ul class="list-group-item border border-0">
+                                <li class="list-group">
+                                    <p class="lead">
+                                        Colab que permite trasladar automáticamente las notas de la evolución a lo largo
+                                        del
+                                        curso, de manera individual, al alumnado a partir de un Sheet alojado en Google
+                                        Drive (GDrive).
+                                    </p>
+                                </li>
+                                <li class="list-group">
+                                    <p class="lead">
+                                        Una vez finalizado el proceso, el alumnado recibe un correo. El correo da acceso
+                                        a
+                                        la
+                                        carpeta compartida donde se ubica la hoja de evaluación.
+                                    </p>
+                                    <ul class="list-group-item border-0">
+                                        <li class="list-group">
+                                            <p class="">
+                                                En caso de establecer <i>notas (comentarios) en las casillas</i> dentro
+                                                del
+                                                Sheet a compartir, el
+                                                alumnado lo
+                                                recibirá como comentarios con opción de respuesta o resolución.
+                                                <b>Respondiendo a los comentarios se
+                                                    fomenta la retroalimentación del proceso de evaluación</b>. Al
+                                                responder
+                                                a los comentarios el docente
+                                                recibe la notificación vía correo.
+                                            </p>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-12 mx-auto pt-3">
+                <div class="card border-0  bg-light">
+                    <card class="card-header border border-dark">INFORMACIÓN REQUERIDA</card>
+                    <card class="card-body">
+                        <ul class="list-group border border-0">
+                            <li class="list-group-item  border-0">
+                                1. <b>El nombre del archivo con las notas no debe contener espacios en blanco.</b> <i>Se
+                                    recomienda sustituírlos por barras bajas "_"</i>
+                            </li>
+                            <li class="list-group-item  border-0">
+                                2. <b>Se debe establecer la ruta al archivo dentro de GDrive</b>, partiendo de <i>Mi
+                                    Unidad</i>.
+                            </li>
+                            <li class="list-group-item  border-0">
+                                3. <b>Debe establecerse el número de la columna en la que aparecen los nombres del
+                                    alumando.</b>
+                            </li>
+                            <li class="list-group-item  border-0">
+                                4. <b>Debe establecerse el número de la columna en la que aparecen los correos del
+                                    alumnado.</b>
+                            </li>
+                            <li class="list-group-item  border-0">
+                                5. <b>Debe establecerse el número de filas reservadas para la cabecera.</b> <i>Línea
+                                    donde
+                                    comienzan los alumnos-1.</i>
+                            </li>
+                        </ul>
+                    </card>
+                    <div class="card border-0 bg-light">
+                        <card class="card-header border border-dark">OPCIONES</card>
+                        <card class="card-body">
+                            <ul class="list-group border border-0">
+                                <li class="list-group-item  border-0">
+                                    1. <b>Cabecera avanzada.</b> En caso de utilizar columnas agrupadas, podemos
+                                    trasladar
+                                    este tipo de cabecera avanzada mediante una plantilla. Gracias a esta plantilla se
+                                    compia la cabecera respetando las colummnas colapsadas. La plantilla consiste en el
+                                    mismo documento GSheet pero sin las líneas correspondientes al alumando.
+                                </li>
+                                <li class="list-group-item  border-0">
+                                    2. <b>Nombre de hoja.</b> Permite establecer el nombre de la hoja a trasladar, de no
+                                    definirse se trasladará la primera hoja
+                                </li>
+                                <li class="list-group-item  border-0">
+                                    3. <b>Google Sheets y Excel.</b> Permite trasladar tanto hojas GSheet como Excel.
+                                    *El
+                                    alumnado siempre recibe un documento xlsx*
+                                </li>
+                            </ul>
+                        </card>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <footer class="fixed-bottom">
+            &copy; 2021 Cuatrovientos
+        </footer>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p"
+            crossorigin="anonymous"></script>
+
+</body>
+
+</html>
