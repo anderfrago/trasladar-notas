@@ -54,7 +54,7 @@ def index():
 def authorize():
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE, scopes=SCOPES)
-    flow.redirect_uri = url_for('oauth2callback', _external=True)
+    flow.redirect_uri = url_for('oauth2callback', _external=True, _scheme='https')
     authorization_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true')
@@ -70,10 +70,10 @@ def oauth2callback():
     state = session['state']
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FILE, scopes=SCOPES, state=state)
-    flow.redirect_uri = url_for('oauth2callback', _external=True)
+    flow.redirect_uri = url_for('oauth2callback', _external=True, _scheme='https')
     flow.code_verifier = session.get('code_verifier')
 
-    authorization_response = flask.request.url
+    authorization_response = flask.request.url.replace('http://', 'https://')
     flow.fetch_token(authorization_response=authorization_response)
 
     credentials = flow.credentials
@@ -163,5 +163,4 @@ def logout():
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=int(os.environ.get("PORT", 80)))
