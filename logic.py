@@ -117,18 +117,19 @@ class TransferGrades:
         if not os.path.exists(target_path):
             os.makedirs(target_path)
 
-        results = []
-        original_rows = list(ws_original.rows)
+        # Load data with Pandas to get evaluated values (resolved formulas)
+        # Note: we use ws_original.title to ensure we use the same sheet identified by Openpyxl
+        df = pd.read_excel(local_file, header=None, sheet_name=ws_original.title)
         
-        for idx in range(header_count, len(original_rows)):
-            row = original_rows[idx]
-            name_val = row[col_name_idx].value
-            email_val = row[col_email_idx].value
+        results = []
+        for index, row_pd in df.iloc[header_count:].iterrows():
+            name_val = row_pd.values[col_name_idx]
+            email_val = row_pd.values[col_email_idx]
             
-            name = str(name_val) if name_val is not None else ""
-            email = str(email_val).strip() if email_val is not None else ""
+            name = str(name_val) if name_val is not None and str(name_val).lower() != 'nan' else ""
+            email = str(email_val).strip() if email_val is not None and str(email_val).lower() != 'nan' else ""
             
-            if not name or name.lower() == 'none' or name.lower() == 'nan' or not email:
+            if not name or not email:
                 continue
 
             print(f"Processing student: {name}")
@@ -167,11 +168,13 @@ class TransferGrades:
                 ws_student = wb_student.active
                 if sheet_name: ws_student.title = sheet_name
                 
-                # Copy Header
-                for r_idx in range(header_count):
-                    h_row = original_rows[r_idx]
-                    for c_idx, cell_orig in enumerate(h_row):
-                        cell_new = ws_student.cell(row=r_idx + 1, column=c_idx + 1, value=cell_orig.value)
+                # Copy Header using Pandas values and Openpyxl comments/styles
+                for r_idx, row_header in df.iloc[:header_count].iterrows():
+                    row_list_header = row_header.values.tolist()
+                    for c_idx, val_header in enumerate(row_list_header):
+                        cell_orig = ws_original.cell(row=r_idx + 1, column=c_idx + 1)
+                        cell_new = ws_student.cell(row=r_idx + 1, column=c_idx + 1, value=val_header)
+                        cell_new.comment = cell_orig.comment
                         if cell_orig.has_style:
                             cell_new.font = copy(cell_orig.font)
                             cell_new.border = copy(cell_orig.border)
@@ -179,12 +182,14 @@ class TransferGrades:
                             cell_new.number_format = copy(cell_orig.number_format)
                             cell_new.protection = copy(cell_orig.protection)
                             cell_new.alignment = copy(cell_orig.alignment)
-                        if cell_orig.comment:
-                            cell_new.comment = copy(cell_orig.comment)
 
             # Add Student Values
-            for c_idx, cell_orig in enumerate(row):
-                cell_new = ws_student.cell(row=header_count + 1, column=c_idx + 1, value=cell_orig.value)
+            # We use row_pd values (from Pandas) and ws_original cells (from Openpyxl)
+            row_list = row_pd.values.tolist()
+            for c_idx, val in enumerate(row_list):
+                cell_orig = ws_original.cell(row=index + 1, column=c_idx + 1)
+                cell_new = ws_student.cell(row=header_count + 1, column=c_idx + 1, value=val)
+                cell_new.comment = cell_orig.comment
                 if cell_orig.has_style:
                     cell_new.font = copy(cell_orig.font)
                     cell_new.border = copy(cell_orig.border)
@@ -192,8 +197,6 @@ class TransferGrades:
                     cell_new.number_format = copy(cell_orig.number_format)
                     cell_new.protection = copy(cell_orig.protection)
                     cell_new.alignment = copy(cell_orig.alignment)
-                if cell_orig.comment:
-                    cell_new.comment = copy(cell_orig.comment)
                 if cell_orig.hyperlink:
                     cell_new.hyperlink = copy(cell_orig.hyperlink)
             
