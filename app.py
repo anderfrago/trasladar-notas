@@ -1,0 +1,167 @@
+import os
+import json
+import flask
+import google_auth_httplib2
+import httplib2
+from flask import Flask, request, redirect, url_for, session, render_template, jsonify
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
+from logic import TransferGrades
+
+app = Flask(__name__)
+app.secret_key = 'trasladar_notas_secret_key_fixed'
+
+@app.route('/assets/<path:path>')
+def send_assets(path):
+    return flask.send_from_directory('assets', path)
+
+# Path to your oauth_credentials.json from Google Cloud Console
+CLIENT_SECRETS_FILE = "oauth_credentials.json"
+SCOPES = [
+    'https://www.googleapis.com/auth/drive',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'openid'
+]
+
+def get_google_drive_service(credentials):
+    # PyDrive2 compatibility shims using google-auth-httplib2
+    if not hasattr(Credentials, 'access_token_expired'):
+        Credentials.access_token_expired = property(lambda self: self.expired)
+    
+    if not hasattr(Credentials, 'authorize'):
+        # This shim correctly wraps the http object with modern credentials
+        def authorize_shim(self, http):
+            return google_auth_httplib2.AuthorizedHttp(self, http)
+        Credentials.authorize = authorize_shim
+        
+    if not hasattr(Credentials, 'refresh_token_expired'):
+        Credentials.refresh_token_expired = False
+    
+    gauth = GoogleAuth()
+    gauth.credentials = credentials
+    return GoogleDrive(gauth)
+
+@app.route('/')
+def index():
+    if 'credentials' not in session:
+        return render_template('index.html', authenticated=False)
+    return render_template('index.html', authenticated=True)
+
+@app.route('/authorize')
+def authorize():
+    flow = Flow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE, scopes=SCOPES)
+    flow.redirect_uri = url_for('oauth2callback', _external=True)
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true')
+    session['state'] = state
+    session['code_verifier'] = flow.code_verifier
+    return redirect(authorization_url)
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    if 'state' not in session:
+        return redirect(url_for('authorize'))
+    
+    state = session['state']
+    flow = Flow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE, scopes=SCOPES, state=state)
+    flow.redirect_uri = url_for('oauth2callback', _external=True)
+    flow.code_verifier = session.get('code_verifier')
+
+    authorization_response = flask.request.url
+    flow.fetch_token(authorization_response=authorization_response)
+
+    credentials = flow.credentials
+    session['credentials'] = {
+        'token': credentials.token,
+        'refresh_token': credentials.refresh_token,
+        'token_uri': credentials.token_uri,
+        'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret,
+        'scopes': credentials.scopes
+    }
+
+    return redirect(url_for('index'))
+
+@app.route('/generate', methods=['POST'])
+def generate():
+    if 'credentials' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    creds = Credentials(**session['credentials'])
+    drive = get_google_drive_service(creds)
+    transfer_logic = TransferGrades(drive, creds)
+
+    config = {
+        'nombre_excel_notas': request.form.get('nombre_excel_notas'),
+        'nombre_hoja': request.form.get('nombre_hoja'),
+        'numero_cabecera': int(request.form.get('numero_cabecera', 0)),
+        'letra_columna_nombre': request.form.get('letra_columna_nombre'),
+        'letra_columna_correo': request.form.get('letra_columna_correo'),
+        'plantilla_cabecera': request.form.get('plantilla_cabecera'),
+        'extension_cabecera': request.form.get('extension_cabecera'),
+        'nombre_otras_hoja': request.form.get('lista_otras_hoja', '').split(','),
+        'path_target': 'output',
+        'convert_to_sheet': request.form.get('extension') == 'Google Sheet'
+    }
+
+    try:
+        # 0. Cleanup previous run
+        transfer_logic.cleanup_local_files(config['path_target'])
+
+        # 1. Search for the main file
+        local_file, file_id = transfer_logic.search_file(
+            config['nombre_excel_notas'], 
+            request.form.get('extension') == 'Google Sheet'
+        )
+        
+        if not local_file:
+            return jsonify({'error': 'Main file not found'}), 404
+
+        # 2. Process and create local folders/files
+        results = transfer_logic.copy_grades(config)
+
+        # 3. Upload to Drive (Step 1 complete)
+        target_folder_id = request.form.get('target_folder_id', 'root')
+        uploaded_items = transfer_logic.upload_folders(results, target_folder_id, convert=config['convert_to_sheet'])
+
+        return jsonify({'status': 'success', 'items': uploaded_items})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/notify', methods=['POST'])
+def notify():
+    if 'credentials' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    creds = Credentials(**session['credentials'])
+    drive = get_google_drive_service(creds)
+    transfer_logic = TransferGrades(drive, creds)
+
+    try:
+        items = request.json.get('items', [])
+        if not items:
+            return jsonify({'error': 'No items to notify'}), 400
+        
+        results = transfer_logic.share_with_students(items)
+        return jsonify({'status': 'success', 'results': results})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    app.run(debug=True, port=5000)

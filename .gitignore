@@ -1,0 +1,8 @@
+oauth_credentials.json
+output/
+__pycache__/
+*.xlsx
+*.log
+.env
+.vscode/
+.idea/
