@@ -207,63 +207,82 @@
             <a href="/authorize" class="btn btn-primary">Conectar con Google Drive</a>
         </div>
         {% else %}
-        <form id="transferForm">
-            <div class="form-grid">
-                <div class="form-group full-width">
-                    <label for="nombre_excel_notas">Nombre del Archivo de Notas en Drive</label>
-                    <input type="text" id="nombre_excel_notas" name="nombre_excel_notas"
-                        placeholder="Ej: 2122 CC 2DAM 2EV" required>
+        <!-- PASO 1: GENERACIÓN -->
+        <div id="step1">
+            <h3 style="margin-bottom: 1.5rem; color: var(--primary); font-size: 1.2rem; text-transform: uppercase;">Paso 1: Generar Archivos</h3>
+            <form id="transferForm">
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label for="nombre_excel_notas">Nombre del Archivo de Notas en Drive</label>
+                        <input type="text" id="nombre_excel_notas" name="nombre_excel_notas"
+                            placeholder="Ej: 2122 CC 2DAM 2EV" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="extension">Tipo de Archivo</label>
+                        <select id="extension" name="extension">
+                            <option value="Google Sheet">Google Sheet</option>
+                            <option value="Excel">Excel (.xlsx)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="nombre_hoja">Nombre de la Hoja (Pestaña)</label>
+                        <input type="text" id="nombre_hoja" name="nombre_hoja" placeholder="Ej: NOTAS">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="letra_columna_nombre">Columna Nombres</label>
+                        <input type="text" id="letra_columna_nombre" name="letra_columna_nombre" placeholder="B" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="letra_columna_correo">Columna Correos</label>
+                        <input type="text" id="letra_columna_correo" name="letra_columna_correo" placeholder="C" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="numero_cabecera">Filas de Cabecera</label>
+                        <input type="number" id="numero_cabecera" name="numero_cabecera" value="7" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="target_folder_id">ID Carpeta Destino (Opcional)</label>
+                        <input type="text" id="target_folder_id" name="target_folder_id"
+                            placeholder="ID o dejar vacío para 'root'">
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="plantilla_cabecera">Nombre Archivo Plantilla (Opcional)</label>
+                        <input type="text" id="plantilla_cabecera" name="plantilla_cabecera"
+                            placeholder="Nombre de la plantilla en Drive">
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="extension">Tipo de Archivo</label>
-                    <select id="extension" name="extension">
-                        <option value="Google Sheet">Google Sheet</option>
-                        <option value="Excel">Excel (.xlsx)</option>
-                    </select>
+                <div style="text-align: center; margin-top: 2rem;">
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Generar Archivos</button>
+                    <div style="margin-top: 1.5rem;">
+                        <a href="/logout" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">Cerrar
+                            sesión</a>
+                    </div>
                 </div>
+            </form>
+        </div>
 
-                <div class="form-group">
-                    <label for="nombre_hoja">Nombre de la Hoja (Pestaña)</label>
-                    <input type="text" id="nombre_hoja" name="nombre_hoja" placeholder="Ej: NOTAS">
-                </div>
-
-                <div class="form-group">
-                    <label for="letra_columna_nombre">Columna Nombres</label>
-                    <input type="text" id="letra_columna_nombre" name="letra_columna_nombre" placeholder="B" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="letra_columna_correo">Columna Correos</label>
-                    <input type="text" id="letra_columna_correo" name="letra_columna_correo" placeholder="C" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="numero_cabecera">Filas de Cabecera</label>
-                    <input type="number" id="numero_cabecera" name="numero_cabecera" value="7" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="target_folder_id">ID Carpeta Destino (Opcional)</label>
-                    <input type="text" id="target_folder_id" name="target_folder_id"
-                        placeholder="ID o dejar vacío para 'root'">
-                </div>
-
-                <div class="form-group full-width">
-                    <label for="plantilla_cabecera">Nombre Archivo Plantilla (Opcional)</label>
-                    <input type="text" id="plantilla_cabecera" name="plantilla_cabecera"
-                        placeholder="Nombre de la plantilla en Drive">
-                </div>
+        <!-- PASO 2: NOTIFICACIÓN -->
+        <div id="step2" style="display: none;">
+            <h3 style="margin-bottom: 1.5rem; color: var(--primary); font-size: 1.2rem; text-transform: uppercase;">Paso 2: Notificar al Alumnado</h3>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Se han generado los archivos correctamente. Ahora puedes enviar las notificaciones por correo y compartir las carpetas.</p>
+            
+            <div id="studentList" style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.02); border-radius: 12px; padding: 1rem; margin-bottom: 2rem; border: 1px solid var(--border);">
+                <!-- Lista de alumnos generada dinámicamente -->
             </div>
 
-            <div style="text-align: center; margin-top: 2rem;">
-                <button type="submit" class="btn btn-primary" id="submitBtn">Iniciar Proceso</button>
-                <div style="margin-top: 1.5rem;">
-                    <a href="/logout" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">Cerrar
-                        sesión</a>
-                </div>
+            <div style="text-align: center;">
+                <button id="notifyBtn" class="btn btn-primary">Compartir y Notificar</button>
+                <button id="backBtn" style="background: none; border: 1px solid var(--border); color: var(--text-muted); margin-left: 1rem;" class="btn">Volver</button>
             </div>
-        </form>
+        </div>
 
         <div id="status" class="status-card"></div>
         {% endif %}
@@ -273,12 +292,19 @@
         const form = document.getElementById('transferForm');
         const status = document.getElementById('status');
         const submitBtn = document.getElementById('submitBtn');
+        const step1 = document.getElementById('step1');
+        const step2 = document.getElementById('step2');
+        const studentList = document.getElementById('studentList');
+        const notifyBtn = document.getElementById('notifyBtn');
+        const backBtn = document.getElementById('backBtn');
+
+        let generatedItems = [];
 
         if (form) {
             form.onsubmit = async (e) => {
                 e.preventDefault();
                 submitBtn.disabled = true;
-                submitBtn.innerText = 'Procesando...';
+                submitBtn.innerText = 'Generando...';
                 status.style.display = 'none';
 
                 const formData = new FormData(form);
@@ -289,11 +315,13 @@
                     });
                     const result = await response.json();
 
-                    status.style.display = 'block';
                     if (response.ok) {
-                        status.className = 'status-card status-success';
-                        status.innerText = `¡Éxito! Se han procesado los archivos correctamente.`;
+                        generatedItems = result.items;
+                        renderStudentList(generatedItems);
+                        step1.style.display = 'none';
+                        step2.style.display = 'block';
                     } else {
+                        status.style.display = 'block';
                         status.className = 'status-card status-error';
                         status.innerText = `Error: ${result.error}`;
                     }
@@ -303,10 +331,61 @@
                     status.innerText = 'Error de conexión con el servidor.';
                 } finally {
                     submitBtn.disabled = false;
-                    submitBtn.innerText = 'Iniciar Proceso';
+                    submitBtn.innerText = 'Generar Archivos';
                 }
             };
         }
+
+        function renderStudentList(items) {
+            studentList.innerHTML = items.map(item => `
+                <div style="display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 0.9rem;">
+                    <span style="font-weight: 600;">${item.name}</span>
+                    <span style="color: var(--text-muted);">${item.email}</span>
+                </div>
+            `).join('');
+        }
+
+        notifyBtn.onclick = async () => {
+            notifyBtn.disabled = true;
+            notifyBtn.innerText = 'Notificando...';
+            status.style.display = 'none';
+
+            try {
+                const response = await fetch('/notify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: generatedItems })
+                });
+                const result = await response.json();
+
+                status.style.display = 'block';
+                if (response.ok) {
+                    status.className = 'status-card status-success';
+                    status.innerText = '¡Proceso completado! Se han compartido las carpetas y notificado a los alumnos.';
+                    notifyBtn.style.display = 'none';
+                } else {
+                    status.className = 'status-card status-error';
+                    status.innerText = `Error al notificar: ${result.error}`;
+                    notifyBtn.disabled = false;
+                    notifyBtn.innerText = 'Compartir y Notificar';
+                }
+            } catch (err) {
+                status.style.display = 'block';
+                status.className = 'status-card status-error';
+                status.innerText = 'Error al conectar con el servidor para notificar.';
+                notifyBtn.disabled = false;
+                notifyBtn.innerText = 'Compartir y Notificar';
+            }
+        };
+
+        backBtn.onclick = () => {
+            step2.style.display = 'none';
+            step1.style.display = 'block';
+            status.style.display = 'none';
+            notifyBtn.style.display = 'inline-block';
+            notifyBtn.disabled = false;
+            notifyBtn.innerText = 'Compartir y Notificar';
+        };
     </script>
 </body>
 
