@@ -1,170 +1,306 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Digitalización educativa</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
-        integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <title>Trasladar Notas | Digitalización Educativa - Cuatrovientos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #004a99; /* Azul Cuatrovientos */
+            --primary-hover: #003366;
+            --accent: #f0f4f8;
+            --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #cbd5e1;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        .navbar {
+            width: 100%;
+            max-width: 1000px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1rem 0;
+        }
+
+        .navbar img {
+            height: 50px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 3rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .auth-section {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.8rem 2.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 10px rgba(0, 74, 153, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0, 74, 153, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group.full-width {
+            grid-column: span 2;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-main);
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0, 74, 153, 0.1);
+        }
+
+        .status-card {
+            margin-top: 2rem;
+            padding: 1.2rem;
+            border-radius: 12px;
+            display: none;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .status-success {
+            background: #ecfdf5;
+            border: 1px solid #10b981;
+            color: #065f46;
+        }
+
+        .status-error {
+            background: #fef2f2;
+            border: 1px solid #ef4444;
+            color: #991b1b;
+        }
+
+        @media (max-width: 600px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            .form-group.full-width {
+                grid-column: span 1;
+            }
+            .container {
+                padding: 1.5rem;
+            }
+        }
+    </style>
 </head>
-
 <body>
-    <nav class="navbar navbar-expand-lg ">
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarTogglerDemo01"
-            aria-controls="navbarTogglerDemo01" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarTogglerDemo01">
-            <a class="navbar-brand" href="#"><img src="./assets/logo.png">
-            </a>
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item ">
-                    Digitalización educativa
-                </li>
-            </ul>
-        </div>
-    </nav>
-    <div class="container-fluid">
-        <div class="row bg-light">
-            <div class="col-10 mx-auto">
-
-                <div class=" bg-light p-5">
-                    <h2 class="text-muted"> Herramienta para trasladar la evaluación al alumnado y fomentar la
-                        retroalimentación</h2>
-                    <div class="d-flex justify-content-center py-3 ">
-                        <a class="btn btn-outline-info"
-                            href="https://colab.research.google.com/github/anderfrago/TrasladarNotasAlumnos/blob/main/2022_CompartirCompetenciasClave.ipynb">
-                            Accesible desde aquí</a>
-                    </div>
-                    <div class="card d-none d-sm-none d-md-block d-lg-block d-xl-block">
-                        <div class="card-body">
-                            <ul class="list-group-item border border-0">
-                                <li class="list-group">
-                                    <p class="lead">
-                                        Colab que permite trasladar automáticamente las notas de la evolución a lo largo
-                                        del
-                                        curso, de manera individual, al alumnado a partir de una Hoja de cálculo (Sheet) alojado en Google
-                                        Drive (GDrive).
-                                    </p>
-                                </li>
-                                <li class="list-group">
-                                    <p class="lead">
-                                        Una vez finalizado el proceso, el alumnado recibe un correo. El correo da acceso
-                                        a
-                                        la
-                                        carpeta compartida donde se ubica la hoja de evaluación.
-                                    </p>
-                                    <ul class="list-group-item border-0">
-                                        <li class="list-group">
-                                            <p class="muted">
-                                                En caso de establecer <i>notas (comentarios) en las casillas</i> dentro
-                                                del
-                                                Sheet a compartir, el
-                                                alumnado lo
-                                                recibirá como comentarios con opción de respuesta o resolución.
-                                                <b>Respondiendo a los comentarios se
-                                                    fomenta la retroalimentación del proceso de evaluación</b>. Al
-                                                responder
-                                                a los comentarios el docente
-                                                recibe la notificación vía correo.
-                                            </p>
-                                        </li>
-                                    </ul>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="navbar">
+        <img src="/assets/logo.png" alt="Cuatrovientos Logo">
+        <div style="font-weight: 600; color: var(--primary);">Digitalización Educativa</div>
     </div>
 
     <div class="container">
-        <div class="row">
-            <div class="col-12 mx-auto pt-3">
-                <div class="card border-0  bg-light">
-                    <div class="card-header border border-dark">INFORMACIÓN REQUERIDA</div>
-                    <div class="card-body">
-                        <ul class="list-group border border-0">
-                            <li class="list-group-item  border-0">
-                                1. <b>El nombre del archivo con las notas</b> 
-                            </li>
-                            <li class="list-group-item  border-0">
-                                2. <b>Se requiere la ruta al archivo dentro de GDrive</b>, partiendo de <i>Mi
-                                    Unidad</i>.
-                            </li>
-                            <li class="list-group-item  border-0">
-                                3. <b>Se requiere la letra de la columna en la que aparecen los nombres del
-                                    alumando.</b>
-                            </li>
-                            <li class="list-group-item  border-0">
-                                4. <b>Se requiere la letra de la columna en la que aparecen los correos del
-                                    alumnado.</b>
-                            </li>
-                            <li class="list-group-item  border-0">
-                                5. <b>Se requiere el número de filas reservadas para la cabecera.</b> <i>Línea
-                                    donde
-                                    comienzan los alumnos-1.</i>
-                            </li>
-                        </ul>
-                    </div>
-                    <div class="card border-0 bg-light">
-                        <div class="card-header border border-dark">OPCIONES</div>
-                        <div class="card-body">
-                            <ul class="list-group border border-0">
-                                <li class="list-group-item  border-0">
-                                    1. <b>Nombre de hoja.</b> Permite establecer el nombre de la hoja a trasladar, de no
-                                    definirse se trasladará la primera hoja
-                                </li>
-                                <li class="list-group-item  border-0">
-                                    2. <b>Google Sheets y Excel.</b> Permite trasladar tanto hojas GSheet como Excel.
-                                    <i>El
-                                        alumnado siempre recibe un documento xlsx</i>
-                                </li>
-                                <li class="list-group-item  border-0">
-                                    3. <b>Cabecera avanzada.</b> En caso de utilizar columnas agrupadas, podemos
-                                    trasladar
-                                    este tipo de cabecera avanzada mediante una plantilla. Gracias a esta plantilla se
-                                    compia la cabecera respetando las colummnas colapsadas. La plantilla consiste en el
-                                    mismo documento GSheet pero sin las líneas correspondientes al alumando.
-                                </li>
-                            </ul>
-                            <div class="alert alert-warning" role="alert">
-                             En caso de querer trasladar las notas de más de un documento es necesario ejecutar la celda de reinicio de máquina.
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card border-0 bg-light">
-                        <div class="card-header border border-dark">TUTORIAL</div>
-                        <div class="card-body mx-auto">
-                            <ul class="list-group border border-0">
-                                <li class="list-group-item  border-0 m-0">
-                                    <a href="https://drive.google.com/uc?export=download&id=1PueQtWIEy-BnLl3GmpTDB1gRa7m38AOs">
-                                        <img class="img-fluid" src="https://cdn4.iconfinder.com/data/icons/basic-user-interface-elements/700/import-download-save-64.png" />
-                                        <i>Descargar vídeo para mejor resolución</i>
-                                    </a>
-                                </li>  
-                                <li class="list-group-item  border-0">
-                                    <iframe  width="640" height="480" src="https://drive.google.com/file/d/1PueQtWIEy-BnLl3GmpTDB1gRa7m38AOs/preview" >
-                                    </iframe>
-                                </li>  
-                            </ul>
-                        </div>
-                    </div>
+        <header>
+            <h1>Trasladar Notas</h1>
+            <p class="subtitle">Automatización de evaluación para el alumnado</p>
+        </header>
+
+        {% if not authenticated %}
+        <div class="auth-section">
+            <p style="margin-bottom: 2rem; color: var(--text-muted);">Para comenzar, necesitas autorizar el acceso a tu Google Drive para buscar los archivos de notas.</p>
+            <a href="/authorize" class="btn btn-primary">Conectar con Google Drive</a>
+        </div>
+        {% else %}
+        <form id="transferForm">
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label for="nombre_excel_notas">Nombre del Archivo de Notas en Drive</label>
+                    <input type="text" id="nombre_excel_notas" name="nombre_excel_notas" placeholder="Ej: 2122 CC 2DAM 2EV" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="extension">Tipo de Archivo</label>
+                    <select id="extension" name="extension">
+                        <option value="Google Sheet">Google Sheet</option>
+                        <option value="Excel">Excel (.xlsx)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="nombre_hoja">Nombre de la Hoja (Pestaña)</label>
+                    <input type="text" id="nombre_hoja" name="nombre_hoja" placeholder="Ej: NOTAS">
+                </div>
+
+                <div class="form-group">
+                    <label for="letra_columna_nombre">Columna Nombres</label>
+                    <input type="text" id="letra_columna_nombre" name="letra_columna_nombre" placeholder="B" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="letra_columna_correo">Columna Correos</label>
+                    <input type="text" id="letra_columna_correo" name="letra_columna_correo" placeholder="C" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="numero_cabecera">Filas de Cabecera</label>
+                    <input type="number" id="numero_cabecera" name="numero_cabecera" value="7" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="target_folder_id">ID Carpeta Destino (Opcional)</label>
+                    <input type="text" id="target_folder_id" name="target_folder_id" placeholder="ID o dejar vacío para 'root'">
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="plantilla_cabecera">Nombre Archivo Plantilla (Opcional)</label>
+                    <input type="text" id="plantilla_cabecera" name="plantilla_cabecera" placeholder="Nombre de la plantilla en Drive">
                 </div>
             </div>
-        </div>
+
+            <div style="text-align: center; margin-top: 2rem;">
+                <button type="submit" class="btn btn-primary" id="submitBtn">Iniciar Proceso</button>
+                <div style="margin-top: 1.5rem;">
+                    <a href="/logout" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">Cerrar sesión</a>
+                </div>
+            </div>
+        </form>
+
+        <div id="status" class="status-card"></div>
+        {% endif %}
     </div>
-    <footer class="fixed-bottom">
-        &copy; 2021 Cuatrovientos
-    </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
-        integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p"
-        crossorigin="anonymous"></script>
+    <script>
+        const form = document.getElementById('transferForm');
+        const status = document.getElementById('status');
+        const submitBtn = document.getElementById('submitBtn');
 
+        if (form) {
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                submitBtn.disabled = true;
+                submitBtn.innerText = 'Procesando...';
+                status.style.display = 'none';
+
+                const formData = new FormData(form);
+                try {
+                    const response = await fetch('/generate', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+
+                    status.style.display = 'block';
+                    if (response.ok) {
+                        status.className = 'status-card status-success';
+                        status.innerText = `¡Éxito! Se han procesado los archivos correctamente.`;
+                    } else {
+                        status.className = 'status-card status-error';
+                        status.innerText = `Error: ${result.error}`;
+                    }
+                } catch (err) {
+                    status.style.display = 'block';
+                    status.className = 'status-card status-error';
+                    status.innerText = 'Error de conexión con el servidor.';
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = 'Iniciar Proceso';
+                }
+            };
+        }
+    </script>
 </body>
-
 </html>
