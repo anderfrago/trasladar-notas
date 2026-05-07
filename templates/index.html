@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trasladar Notas | Digitalización Educativa - Cuatrovientos</title>
+    <title>Trasladar Notas | Cuatrovientos</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #004a99; /* Azul Cuatrovientos */
+            --primary: #004a99;
+            /* Azul Cuatrovientos */
             --primary-hover: #003366;
             --accent: #f0f4f8;
             --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
@@ -137,7 +139,8 @@
             letter-spacing: 0.05em;
         }
 
-        input, select {
+        input,
+        select {
             width: 100%;
             padding: 0.8rem 1rem;
             background: white;
@@ -178,15 +181,18 @@
             .form-grid {
                 grid-template-columns: 1fr;
             }
+
             .form-group.full-width {
                 grid-column: span 1;
             }
+
             .container {
                 padding: 1.5rem;
             }
         }
     </style>
 </head>
+
 <body>
     <div class="navbar">
         <img src="/assets/logo.png" alt="Cuatrovientos Logo">
@@ -201,7 +207,8 @@
 
         {% if not authenticated %}
         <div class="auth-section">
-            <p style="margin-bottom: 2rem; color: var(--text-muted);">Para comenzar, necesitas autorizar el acceso a tu Google Drive para buscar los archivos de notas.</p>
+            <p style="margin-bottom: 2rem; color: var(--text-muted);">Para comenzar, necesitas autorizar el acceso a tu
+                Google Drive para buscar los archivos de notas.</p>
             <a href="/authorize" class="btn btn-primary">Conectar con Google Drive</a>
         </div>
         {% else %}
@@ -209,9 +216,10 @@
             <div class="form-grid">
                 <div class="form-group full-width">
                     <label for="nombre_excel_notas">Nombre del Archivo de Notas en Drive</label>
-                    <input type="text" id="nombre_excel_notas" name="nombre_excel_notas" placeholder="Ej: 2122 CC 2DAM 2EV" required>
+                    <input type="text" id="nombre_excel_notas" name="nombre_excel_notas"
+                        placeholder="Ej: 2122 CC 2DAM 2EV" required>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="extension">Tipo de Archivo</label>
                     <select id="extension" name="extension">
@@ -242,19 +250,22 @@
 
                 <div class="form-group">
                     <label for="target_folder_id">ID Carpeta Destino (Opcional)</label>
-                    <input type="text" id="target_folder_id" name="target_folder_id" placeholder="ID o dejar vacío para 'root'">
+                    <input type="text" id="target_folder_id" name="target_folder_id"
+                        placeholder="ID o dejar vacío para 'root'">
                 </div>
 
                 <div class="form-group full-width">
                     <label for="plantilla_cabecera">Nombre Archivo Plantilla (Opcional)</label>
-                    <input type="text" id="plantilla_cabecera" name="plantilla_cabecera" placeholder="Nombre de la plantilla en Drive">
+                    <input type="text" id="plantilla_cabecera" name="plantilla_cabecera"
+                        placeholder="Nombre de la plantilla en Drive">
                 </div>
             </div>
 
             <div style="text-align: center; margin-top: 2rem;">
                 <button type="submit" class="btn btn-primary" id="submitBtn">Iniciar Proceso</button>
                 <div style="margin-top: 1.5rem;">
-                    <a href="/logout" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">Cerrar sesión</a>
+                    <a href="/logout" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">Cerrar
+                        sesión</a>
                 </div>
             </div>
         </form>
@@ -303,4 +314,5 @@
         }
     </script>
 </body>
+
 </html>
