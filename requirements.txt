@@ -4,6 +4,7 @@ google-auth-oauthlib>=1.1.0
 google-auth-httplib2>=0.1.1
 google-api-python-client>=2.100.0
 pydrive2>=1.17.0
+PySocks>=1.7.1
 openpyxl>=3.1.0
 pandas>=2.1.0
 requests>=2.31.0

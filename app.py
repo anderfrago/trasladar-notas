@@ -51,6 +51,11 @@ def get_google_drive_service(credentials):
 
     def build_http_transport():
         if proxy_url:
+            if httplib2.socks is None:
+                raise RuntimeError(
+                    'PySocks no está instalado; httplib2 no puede utilizar '
+                    'el proxy de PythonAnywhere'
+                )
             proxy_info = httplib2.proxy_info_from_url(
                 proxy_url,
                 method='https',
