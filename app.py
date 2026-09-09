@@ -41,6 +41,34 @@ def get_google_drive_service(credentials):
         Credentials.refresh_token_expired = False
     
     gauth = GoogleAuth()
+
+    # PythonAnywhere free accounts require outbound HTTP(S) traffic to use
+    # their proxy.  PyDrive2 creates its own httplib2 transport for each
+    # thread, so configuring requests (or a one-off transport) is not enough.
+    # Build every PyDrive2 transport with the proxy explicitly and do not let
+    # NO_PROXY accidentally bypass it for googleapis.com.
+    proxy_url = os.environ.get('https_proxy') or os.environ.get('HTTPS_PROXY')
+
+    def build_http_transport():
+        if proxy_url:
+            proxy_info = httplib2.proxy_info_from_url(
+                proxy_url,
+                method='https',
+                noproxy=''
+            )
+            http = httplib2.Http(proxy_info=proxy_info, timeout=60)
+        else:
+            http = httplib2.Http(timeout=60)
+
+        # Google Drive uses 308 for resumable uploads, not as a permanent
+        # redirect.  Keep the same behaviour as PyDrive2's default transport.
+        try:
+            http.redirect_codes = http.redirect_codes - {308}
+        except AttributeError:
+            pass
+        return http
+
+    gauth._build_http = build_http_transport
     gauth.credentials = credentials
     return GoogleDrive(gauth)
 
