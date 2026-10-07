@@ -1,199 +1,232 @@
-import os
+import hmac
 import json
-import flask
+import os
+import secrets
+from pathlib import Path
+from urllib.parse import urlsplit
+
+import click
 import google_auth_httplib2
 import httplib2
-from flask import Flask, request, redirect, url_for, session, render_template, jsonify
+from dotenv import load_dotenv
+from flask import Flask, abort, g, jsonify, redirect, render_template, request, session, url_for
 from google_auth_oauthlib.flow import Flow
+from google.auth.transport.requests import Request
+from google.oauth2 import id_token
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
-from logic import TransferGrades
+from logic import InputError, TransferGrades
+from storage import Store
 
-app = Flask(__name__)
-app.secret_key = 'trasladar_notas_secret_key_fixed'
+SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/drive.file']
 
-@app.route('/assets/<path:path>')
-def send_assets(path):
-    return flask.send_from_directory('assets', path)
+def create_app(config=None):
+    load_dotenv(Path(__file__).with_name('.env'))
+    app = Flask(__name__)
+    app.config.from_mapping(
+        SECRET_KEY=os.getenv('SECRET_KEY', ''), TOKEN_ENCRYPTION_KEY=os.getenv('TOKEN_ENCRYPTION_KEY', ''),
+        PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL', ''),
+        GOOGLE_CLIENT_SECRETS=os.getenv('GOOGLE_CLIENT_SECRETS', 'oauth_credentials.json'),
+        TEACHER_DOMAIN=os.getenv('TEACHER_DOMAIN', '').lower(),
+        TEACHER_EMAILS=os.getenv('TEACHER_EMAILS', ''), STUDENT_DOMAINS=os.getenv('STUDENT_DOMAINS', ''),
+        DATABASE=os.getenv('DATABASE', str(Path(app.instance_path) / 'private.sqlite3')),
+        SESSION_COOKIE_SECURE=os.getenv('COOKIE_SECURE', 'true').lower() == 'true',
+        SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
+        MAX_CONTENT_LENGTH=32*1024, SESSION_COOKIE_NAME='trasladar_session',
+        PRIVACY_CONTROLLER=os.getenv('PRIVACY_CONTROLLER', ''), PRIVACY_CONTACT=os.getenv('PRIVACY_CONTACT', ''),
+        PRIVACY_LEGAL_BASIS=os.getenv('PRIVACY_LEGAL_BASIS', ''), PRIVACY_RETENTION=os.getenv('PRIVACY_RETENTION', ''),
+        PRIVACY_PROVIDERS=os.getenv('PRIVACY_PROVIDERS', ''))
+    if config:
+        app.config.update(config)
+    if len(app.config['SECRET_KEY']) < 32 or app.config['SECRET_KEY'] == 'trasladar_notas_secret_key_fixed':
+        raise RuntimeError('Configura SECRET_KEY aleatoria de al menos 32 caracteres.')
+    base = app.config['PUBLIC_BASE_URL'].rstrip('/')
+    parts = urlsplit(base)
+    if parts.scheme != 'https' or not parts.netloc or parts.path or parts.query or parts.fragment or parts.username:
+        raise RuntimeError('PUBLIC_BASE_URL debe ser el origen HTTPS público, sin ruta.')
+    emails = {s.strip().lower() for s in app.config['TEACHER_EMAILS'].split(',') if s.strip()}
+    domains = {s.strip().lower() for s in app.config['STUDENT_DOMAINS'].split(',') if s.strip()}
+    if not emails or not domains or not app.config['TEACHER_DOMAIN']:
+        raise RuntimeError('Configura el dominio, docentes autorizados y dominios del alumnado.')
+    Path(app.config['DATABASE']).parent.mkdir(parents=True, exist_ok=True)
+    store = Store(app.config['DATABASE'], app.config['TOKEN_ENCRYPTION_KEY'])
+    app.extensions['store'] = store
+    callback = base + '/oauth2callback'
 
-# Path to your oauth_credentials.json from Google Cloud Console
-CLIENT_SECRETS_FILE = "oauth_credentials.json"
-SCOPES = [
-    'https://www.googleapis.com/auth/drive',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'openid'
-]
+    def flow(**kwargs):
+        return Flow.from_client_secrets_file(app.config['GOOGLE_CLIENT_SECRETS'], scopes=SCOPES, redirect_uri=callback, **kwargs)
 
-def get_google_drive_service(credentials):
-    # PyDrive2 compatibility shims using google-auth-httplib2
-    if not hasattr(Credentials, 'access_token_expired'):
-        Credentials.access_token_expired = property(lambda self: self.expired)
-    
-    if not hasattr(Credentials, 'authorize'):
-        # This shim correctly wraps the http object with modern credentials
-        def authorize_shim(self, http):
-            return google_auth_httplib2.AuthorizedHttp(self, http)
-        Credentials.authorize = authorize_shim
-        
-    if not hasattr(Credentials, 'refresh_token_expired'):
-        Credentials.refresh_token_expired = False
-    
-    gauth = GoogleAuth()
+    def service():
+        creds = Credentials.from_authorized_user_info(g.identity['credentials'])
+        proxy = os.getenv('https_proxy') or os.getenv('HTTPS_PROXY')
+        http = httplib2.Http(timeout=60, proxy_info=httplib2.proxy_info_from_url(proxy, method='https', noproxy='') if proxy else None)
+        return build('drive', 'v3', http=google_auth_httplib2.AuthorizedHttp(creds, http=http), cache_discovery=False)
 
-    # PythonAnywhere free accounts require outbound HTTP(S) traffic to use
-    # their proxy.  PyDrive2 creates its own httplib2 transport for each
-    # thread, so configuring requests (or a one-off transport) is not enough.
-    # Build every PyDrive2 transport with the proxy explicitly and do not let
-    # NO_PROXY accidentally bypass it for googleapis.com.
-    proxy_url = os.environ.get('https_proxy') or os.environ.get('HTTPS_PROXY')
+    @app.before_request
+    def security():
+        store.purge()
+        g.identity = store.session(session.get('sid'))
+        if g.identity and 'oauth' not in g.identity and g.identity.get('email') not in emails:
+            store.logout(session['sid'])
+            session.clear()
+            g.identity = None
+        if 'csrf' not in session:
+            session['csrf'] = secrets.token_urlsafe(32)
+        if request.method not in ('GET', 'HEAD', 'OPTIONS'):
+            token = request.headers.get('X-CSRF-Token') or request.form.get('csrf', '')
+            if not hmac.compare_digest(token.encode(), session['csrf'].encode()):
+                abort(403)
+            if request.headers.get('Origin') and request.headers['Origin'] != base:
+                abort(403)
+        if request.path in ('/generate', '/notify') and (not g.identity or 'oauth' in g.identity):
+            abort(401)
 
-    def build_http_transport():
-        if proxy_url:
-            if httplib2.socks is None:
-                raise RuntimeError(
-                    'PySocks no está instalado; httplib2 no puede utilizar '
-                    'el proxy de PythonAnywhere'
-                )
-            proxy_info = httplib2.proxy_info_from_url(
-                proxy_url,
-                method='https',
-                noproxy=''
-            )
-            http = httplib2.Http(proxy_info=proxy_info, timeout=60)
-        else:
-            http = httplib2.Http(timeout=60)
+    @app.after_request
+    def headers(response):
+        response.headers.update({'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer',
+            'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY',
+            'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+            'Strict-Transport-Security': 'max-age=31536000'})
+        return response
 
-        # Google Drive uses 308 for resumable uploads, not as a permanent
-        # redirect.  Keep the same behaviour as PyDrive2's default transport.
+    @app.errorhandler(400)
+    @app.errorhandler(401)
+    @app.errorhandler(403)
+    @app.errorhandler(409)
+    @app.errorhandler(413)
+    def rejected(error):
+        return jsonify(error='Solicitud rechazada. Revisa los datos o vuelve a iniciar sesión.'), error.code
+
+    @app.route('/')
+    def index():
+        return render_template('index.html', authenticated=bool(g.identity and 'oauth' not in g.identity), csrf=session['csrf'])
+
+    @app.route('/authorize')
+    def authorize():
+        if session.get('sid'):
+            store.logout(session['sid'])
+        session.clear()
+        nonce = secrets.token_urlsafe(32)
+        oauth = flow(autogenerate_code_verifier=True)
+        url, state = oauth.authorization_url(access_type='online', prompt='select_account',
+            include_granted_scopes='false', hd=app.config['TEACHER_DOMAIN'], nonce=nonce)
+        session['sid'] = store.create_session({'oauth': {'state': state, 'nonce': nonce, 'verifier': oauth.code_verifier}}, 600)
+        return redirect(url)
+
+    @app.route('/oauth2callback')
+    def oauth2callback():
+        pending = (g.identity or {}).get('oauth')
+        old_sid = session.get('sid')
+        if not pending or not hmac.compare_digest(request.args.get('state', '').encode(), pending['state'].encode()):
+            abort(403)
+        store.logout(old_sid)
+        session.clear()
         try:
-            http.redirect_codes = http.redirect_codes - {308}
-        except AttributeError:
-            pass
-        return http
+            oauth = flow(state=pending['state'], code_verifier=pending['verifier'])
+            oauth.fetch_token(authorization_response=callback + '?' + request.query_string.decode('ascii'))
+            claims = id_token.verify_oauth2_token(oauth.credentials.id_token, Request(), oauth.client_config['client_id'])
+            email = claims.get('email', '').lower()
+            if (claims.get('email_verified') is not True or not claims.get('sub') or
+                claims.get('hd') != app.config['TEACHER_DOMAIN'] or email not in emails or
+                email.rsplit('@', 1)[-1] != app.config['TEACHER_DOMAIN'] or claims.get('nonce') != pending['nonce']):
+                abort(403)
+            credentials = json.loads(oauth.credentials.to_json())
+            credentials['refresh_token'] = ''  # Online access only; no persistent grant retained.
+            session['sid'] = store.create_session({'email': email, 'sub': claims['sub'], 'credentials': credentials}, 3600)
+            session['csrf'] = secrets.token_urlsafe(32)
+        except Exception:
+            # OAuth exceptions can contain authorization codes or token responses.
+            return jsonify(error='No se ha podido verificar una cuenta docente autorizada.'), 403
+        return redirect(url_for('index'))
 
-    gauth._build_http = build_http_transport
-    gauth.credentials = credentials
-    return GoogleDrive(gauth)
+    @app.post('/generate')
+    def generate():
+        config = request.form.to_dict()
+        if config.get('reviewed_source') != 'yes':
+            return jsonify(error='Confirma que has revisado cabeceras, columnas, comentarios y destinatarios.'), 400
+        if config.get('target_folder_id'):
+            return jsonify(error='Esta versión crea una carpeta privada nueva en Mi unidad.'), 400
+        job = None
+        payload = {'items': []}
+        try:
+            transfer = TransferGrades(service())
+            source = transfer.download(config.get('nombre_excel_notas', ''), config.get('extension') == 'Google Sheet')
+            items = transfer.copy_grades(source, config, domains)
+            job = store.create_job(session['sid'])
+            payload['folder_id'] = transfer.new_folder(job)
+            store.save_job(job, payload, 'generating')
+            for item in items:
+                file_id = transfer.upload(item, payload['folder_id'], config.get('extension') == 'Google Sheet')
+                payload['items'].append({'name': item['name'], 'email': item['email'], 'file_id': file_id, 'status': 'pending'})
+                store.save_job(job, payload, 'generating')
+                transfer.assert_private(file_id)
+            store.save_job(job, payload, 'ready')
+            return jsonify(batch_id=job, items=payload['items'])
+        except InputError as error:
+            message = str(error)
+        except Exception:
+            message = 'No se ha completado la generación. Revisa la cuenta, el archivo y la carpeta del lote en Drive.'
+        if job:
+            store.save_job(job, payload, 'failed')
+        return jsonify(error=message, batch_id=job), 400
 
-@app.route('/')
-def index():
-    if 'credentials' not in session:
-        return render_template('index.html', authenticated=False)
-    return render_template('index.html', authenticated=True)
+    @app.post('/notify')
+    def notify():
+        body = request.get_json(silent=True) or {}
+        if not isinstance(body, dict) or body.get('confirmed') is not True or set(body) != {'batch_id', 'confirmed'} or not isinstance(body.get('batch_id'), str):
+            abort(400)
+        job = body['batch_id']
+        payload = store.job(job, session['sid'])
+        if not payload:
+            abort(403)
+        if not store.claim(job, session['sid']):
+            abort(409)
+        payload.pop('state')
+        try:
+            transfer = TransferGrades(service())
+            transfer.assert_private(payload['folder_id'])
+            # Validate the complete batch before sending the first notification.
+            for item in payload['items']:
+                if item['email'].rsplit('@', 1)[-1] not in domains:
+                    raise InputError('El dominio del destinatario ya no está autorizado.')
+                transfer.assert_private(item['file_id'], item['email'])
+            for item in payload['items']:
+                transfer.share(item)
+                item['status'] = 'shared'
+                store.save_job(job, payload, 'sharing')
+            store.save_job(job, payload, 'done')
+            return jsonify(status='success')
+        except Exception:
+            store.save_job(job, payload, 'review_required')
+            return jsonify(error='El reparto puede ser parcial. Revisa los permisos en Drive; este lote no se reenvía automáticamente.', items=payload['items']), 409
 
-@app.route('/authorize')
-def authorize():
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE, scopes=SCOPES)
-    flow.redirect_uri = url_for('oauth2callback', _external=True, _scheme='https')
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true')
-    session['state'] = state
-    session['code_verifier'] = flow.code_verifier
-    return redirect(authorization_url)
+    @app.post('/logout')
+    def logout():
+        if session.get('sid'):
+            store.logout(session['sid'])
+        session.clear()
+        return redirect(url_for('index'))
 
-@app.route('/oauth2callback')
-def oauth2callback():
-    if 'state' not in session:
-        return redirect(url_for('authorize'))
-    
-    state = session['state']
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE, scopes=SCOPES, state=state)
-    flow.redirect_uri = url_for('oauth2callback', _external=True, _scheme='https')
-    flow.code_verifier = session.get('code_verifier')
+    @app.route('/privacidad')
+    def privacy():
+        return render_template('privacidad.html')
 
-    authorization_response = flask.request.url.replace('http://', 'https://')
-    flow.fetch_token(authorization_response=authorization_response)
+    @app.cli.command('purge-expired')
+    def purge_expired():
+        """Erase expired technical sessions/batches (never Drive documents)."""
+        store.purge()
+        click.echo('Sesiones y lotes técnicos caducados eliminados. Drive no se ha modificado.')
 
-    credentials = flow.credentials
-    session['credentials'] = {
-        'token': credentials.token,
-        'refresh_token': credentials.refresh_token,
-        'token_uri': credentials.token_uri,
-        'client_id': credentials.client_id,
-        'client_secret': credentials.client_secret,
-        'scopes': credentials.scopes
-    }
+    @app.cli.command('revoke-sessions')
+    def revoke_sessions():
+        """Revoke all local sessions and batches; leave Drive unchanged."""
+        with store.connect() as db:
+            db.execute('DELETE FROM jobs')
+            db.execute('DELETE FROM sessions')
+        click.echo('Todas las sesiones y lotes técnicos revocados. Drive no se ha modificado.')
 
-    return redirect(url_for('index'))
-
-@app.route('/generate', methods=['POST'])
-def generate():
-    if 'credentials' not in session:
-        return jsonify({'error': 'Not authenticated'}), 401
-
-    creds = Credentials(**session['credentials'])
-    drive = get_google_drive_service(creds)
-    transfer_logic = TransferGrades(drive, creds)
-
-    config = {
-        'nombre_excel_notas': request.form.get('nombre_excel_notas'),
-        'nombre_hoja': request.form.get('nombre_hoja'),
-        'numero_cabecera': int(request.form.get('numero_cabecera', 0)),
-        'letra_columna_nombre': request.form.get('letra_columna_nombre'),
-        'letra_columna_correo': request.form.get('letra_columna_correo'),
-        'plantilla_cabecera': request.form.get('plantilla_cabecera'),
-        'extension_cabecera': request.form.get('extension_cabecera'),
-        'nombre_otras_hoja': request.form.get('lista_otras_hoja', '').split(','),
-        'path_target': 'output',
-        'convert_to_sheet': request.form.get('extension') == 'Google Sheet'
-    }
-
-    try:
-        # 0. Cleanup previous run
-        transfer_logic.cleanup_local_files(config['path_target'])
-
-        # 1. Search for the main file
-        local_file, file_id = transfer_logic.search_file(
-            config['nombre_excel_notas'], 
-            request.form.get('extension') == 'Google Sheet'
-        )
-        
-        if not local_file:
-            return jsonify({'error': 'Main file not found'}), 404
-
-        # 2. Process and create local folders/files
-        results = transfer_logic.copy_grades(config)
-
-        # 3. Upload to Drive (Step 1 complete)
-        target_folder_id = request.form.get('target_folder_id', 'root')
-        uploaded_items = transfer_logic.upload_folders(results, target_folder_id, convert=config['convert_to_sheet'])
-
-        return jsonify({'status': 'success', 'items': uploaded_items})
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/notify', methods=['POST'])
-def notify():
-    if 'credentials' not in session:
-        return jsonify({'error': 'Not authenticated'}), 401
-
-    creds = Credentials(**session['credentials'])
-    drive = get_google_drive_service(creds)
-    transfer_logic = TransferGrades(drive, creds)
-
-    try:
-        items = request.json.get('items', [])
-        if not items:
-            return jsonify({'error': 'No items to notify'}), 400
-        
-        results = transfer_logic.share_with_students(items)
-        return jsonify({'status': 'success', 'results': results})
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('index'))
+    return app
 
 if __name__ == '__main__':
-    app.run(debug=True, port=int(os.environ.get("PORT", 80)))
+    create_app().run(port=5000, debug=False)

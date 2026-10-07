@@ -1,0 +1,10 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacidad · Trasladar notas</title><main style="max-width:800px;margin:3rem auto;font-family:system-ui;padding:1rem">
+<h1>Privacidad y conservación</h1>
+<p>Herramienta destinada al profesorado autorizado para entregar evaluaciones individuales. Trata nombres, correos institucionales, calificaciones y comentarios docentes. El alumnado recibe acceso a su documento mediante Google Drive.</p>
+<dl>{% for label, key in [('Responsable','PRIVACY_CONTROLLER'),('Contacto para derechos y consultas','PRIVACY_CONTACT'),('Base jurídica validada por el centro','PRIVACY_LEGAL_BASIS'),('Conservación de documentos y copias','PRIVACY_RETENTION'),('Proveedores y garantías aplicables','PRIVACY_PROVIDERS')] %}
+<dt><strong>{{ label }}</strong></dt><dd>{{ config[key] or 'Pendiente de completar y validar por el centro antes del uso con datos reales.' }}</dd>{% endfor %}</dl>
+<p>La sesión utiliza una cookie técnica. Las credenciales y los destinatarios se guardan cifrados en el servidor durante un máximo de una hora, y se borran al cerrar sesión o al ejecutar la limpieza de caducados. Los archivos se procesan en memoria y las copias se guardan en Google Drive. Los registros de alojamiento y las copias de seguridad tienen su propia conservación, que debe concretar el centro.</p>
+<p>Las copias y los permisos de Google Drive no desaparecen al cerrar la sesión. El centro debe establecer su plazo de conservación y gestionar su retirada. Las descargas del alumnado tampoco pueden retirarse desde esta aplicación.</p>
+<p>No incluyas información de salud, datos ajenos a la evaluación ni comentarios sobre terceros. El docente revisa los contenidos y destinatarios antes de compartirlos. Puedes dirigirte al contacto indicado para solicitar acceso, rectificación, supresión y los demás derechos que procedan; también puedes acudir a la AEPD.</p>
+<a href="/">Volver</a></main></html>
