@@ -208,7 +208,7 @@
         <div id="step1">
             <h3 style="margin-bottom: 1.5rem; color: var(--primary); font-size: 1.2rem; text-transform: uppercase;">Paso 1: Generar Archivos</h3>
             <form id="transferForm">
-                <p>Se creará una carpeta nueva privada en Mi unidad. Cada documento contendrá la cabecera y una sola fila. No se incluyen otras pestañas ni plantillas.</p>
+                <p>Se creará un lote privado nuevo en la ruta indicada y, dentro, una carpeta nueva por alumno. Cada documento contendrá la cabecera y una sola fila. No se reutilizan ni sobrescriben carpetas anteriores.</p>
                 <p><label><input type="checkbox" name="reviewed_source" value="yes" required> He revisado las columnas, cabeceras, comentarios y correos. No contienen datos de otros alumnos ni información innecesaria.</label></p>
                 <div class="form-grid">
                     <div class="form-group full-width">
@@ -245,6 +245,28 @@
                         <input type="number" id="numero_cabecera" name="numero_cabecera" value="7" required>
                     </div>
 
+                    <div class="form-group full-width">
+                        <label for="target_folder_path">Ruta de carpeta destino (opcional)</label>
+                        <input type="text" id="target_folder_path" name="target_folder_path"
+                            placeholder="Ej: 4Vientos/ASIGNATURA/NOTAS_COMPARTIDAS">
+                        <small>La ruta debe ser privada. Si una carpeta no existe, se creará. En blanco se usa Mi unidad.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="plantilla_cabecera">Plantilla de cabecera (opcional)</label>
+                        <input type="text" id="plantilla_cabecera" name="plantilla_cabecera"
+                            placeholder="Ej: TMP_NOTAS_COMPLEJAS">
+                        <small>Debe contener únicamente las filas de cabecera. Conserva combinaciones, estilos y agrupaciones.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="extension_cabecera">Tipo de plantilla</label>
+                        <select id="extension_cabecera" name="extension_cabecera">
+                            <option value="Google Sheet">Google Sheet</option>
+                            <option value="Excel">Excel (.xlsx)</option>
+                        </select>
+                    </div>
+
 
                 </div>
 
@@ -260,7 +282,7 @@
         <!-- PASO 2: NOTIFICACIÓN -->
         <div id="step2" style="display: none;">
             <h3 style="margin-bottom: 1.5rem; color: var(--primary); font-size: 1.2rem; text-transform: uppercase;">Paso 2: Notificar al Alumnado</h3>
-            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Se han generado los archivos correctamente. Abre cada documento y comprueba que sus datos corresponden al correo mostrado. Solo se compartirán esos archivos en modo lectura; la carpeta seguirá siendo privada.</p>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Se han generado las carpetas individuales. Abre cada documento y comprueba que sus datos corresponden al correo mostrado. Cada alumno recibirá acceso de lectura únicamente a su carpeta; el lote y las demás carpetas seguirán privados.</p>
             
             <div id="studentList" style="max-height: 300px; overflow-y: auto; background: rgba(0,0,0,0.02); border-radius: 12px; padding: 1rem; margin-bottom: 2rem; border: 1px solid var(--border);">
                 <!-- Lista de alumnos generada dinámicamente -->
