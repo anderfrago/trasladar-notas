@@ -31,15 +31,9 @@ def create_app(config=None):
     app.config.from_mapping(
         SECRET_KEY=os.getenv('SECRET_KEY', ''), TOKEN_ENCRYPTION_KEY=os.getenv('TOKEN_ENCRYPTION_KEY', ''),
         PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL', ''),
-<<<<<<< HEAD
         GOOGLE_CLIENT_SECRETS=os.getenv('GOOGLE_CLIENT_SECRETS', 'oauth_credentials.json'),
         TEACHER_DOMAIN=os.getenv('TEACHER_DOMAIN', ''),
         STUDENT_DOMAINS=os.getenv('STUDENT_DOMAINS', ''),
-=======
-        GOOGLE_CLIENT_SECRETS=str(client_secrets),
-        TEACHER_DOMAIN=os.getenv('TEACHER_DOMAIN', '').lower(),
-        TEACHER_EMAILS=os.getenv('TEACHER_EMAILS', ''), STUDENT_DOMAINS=os.getenv('STUDENT_DOMAINS', ''),
->>>>>>> fda29c737c782d0fb10bab763be674f4f2b8e949
         DATABASE=os.getenv('DATABASE', str(Path(app.instance_path) / 'private.sqlite3')),
         SESSION_COOKIE_SECURE=os.getenv('COOKIE_SECURE', 'true').lower() == 'true',
         SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
