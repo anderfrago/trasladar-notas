@@ -28,8 +28,8 @@ def create_app(config=None):
         SECRET_KEY=os.getenv('SECRET_KEY', ''), TOKEN_ENCRYPTION_KEY=os.getenv('TOKEN_ENCRYPTION_KEY', ''),
         PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL', ''),
         GOOGLE_CLIENT_SECRETS=os.getenv('GOOGLE_CLIENT_SECRETS', 'oauth_credentials.json'),
-        TEACHER_DOMAIN=os.getenv('TEACHER_DOMAIN', '').lower(),
-        TEACHER_EMAILS=os.getenv('TEACHER_EMAILS', ''), STUDENT_DOMAINS=os.getenv('STUDENT_DOMAINS', ''),
+        TEACHER_DOMAIN=os.getenv('TEACHER_DOMAIN', ''),
+        STUDENT_DOMAINS=os.getenv('STUDENT_DOMAINS', ''),
         DATABASE=os.getenv('DATABASE', str(Path(app.instance_path) / 'private.sqlite3')),
         SESSION_COOKIE_SECURE=os.getenv('COOKIE_SECURE', 'true').lower() == 'true',
         SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
@@ -45,10 +45,10 @@ def create_app(config=None):
     parts = urlsplit(base)
     if parts.scheme != 'https' or not parts.netloc or parts.path or parts.query or parts.fragment or parts.username:
         raise RuntimeError('PUBLIC_BASE_URL debe ser el origen HTTPS público, sin ruta.')
-    emails = {s.strip().lower() for s in app.config['TEACHER_EMAILS'].split(',') if s.strip()}
+    app.config['TEACHER_DOMAIN'] = app.config['TEACHER_DOMAIN'].strip().lower()
     domains = {s.strip().lower() for s in app.config['STUDENT_DOMAINS'].split(',') if s.strip()}
-    if not emails or not domains or not app.config['TEACHER_DOMAIN']:
-        raise RuntimeError('Configura el dominio, docentes autorizados y dominios del alumnado.')
+    if not domains or not app.config['TEACHER_DOMAIN']:
+        raise RuntimeError('Configura el dominio corporativo y los dominios del alumnado.')
     Path(app.config['DATABASE']).parent.mkdir(parents=True, exist_ok=True)
     store = Store(app.config['DATABASE'], app.config['TOKEN_ENCRYPTION_KEY'])
     app.extensions['store'] = store
@@ -63,11 +63,18 @@ def create_app(config=None):
         http = httplib2.Http(timeout=60, proxy_info=httplib2.proxy_info_from_url(proxy, method='https', noproxy='') if proxy else None)
         return build('drive', 'v3', http=google_auth_httplib2.AuthorizedHttp(creds, http=http), cache_discovery=False)
 
+    def corporate_identity(identity):
+        email = identity.get('email', '')
+        return (identity.get('hd') == app.config['TEACHER_DOMAIN'] and
+                email.count('@') == 1 and
+                email.rsplit('@', 1)[0] != '' and
+                email.rsplit('@', 1)[-1] == app.config['TEACHER_DOMAIN'])
+
     @app.before_request
     def security():
         store.purge()
         g.identity = store.session(session.get('sid'))
-        if g.identity and 'oauth' not in g.identity and g.identity.get('email') not in emails:
+        if g.identity and 'oauth' not in g.identity and not corporate_identity(g.identity):
             store.logout(session['sid'])
             session.clear()
             g.identity = None
@@ -128,16 +135,16 @@ def create_app(config=None):
             claims = id_token.verify_oauth2_token(oauth.credentials.id_token, Request(), oauth.client_config['client_id'])
             email = claims.get('email', '').lower()
             if (claims.get('email_verified') is not True or not claims.get('sub') or
-                claims.get('hd') != app.config['TEACHER_DOMAIN'] or email not in emails or
-                email.rsplit('@', 1)[-1] != app.config['TEACHER_DOMAIN'] or claims.get('nonce') != pending['nonce']):
+                not corporate_identity({'email': email, 'hd': claims.get('hd')}) or
+                claims.get('nonce') != pending['nonce']):
                 abort(403)
             credentials = json.loads(oauth.credentials.to_json())
             credentials['refresh_token'] = ''  # Online access only; no persistent grant retained.
-            session['sid'] = store.create_session({'email': email, 'sub': claims['sub'], 'credentials': credentials}, 3600)
+            session['sid'] = store.create_session({'email': email, 'hd': claims['hd'], 'sub': claims['sub'], 'credentials': credentials}, 3600)
             session['csrf'] = secrets.token_urlsafe(32)
         except Exception:
             # OAuth exceptions can contain authorization codes or token responses.
-            return jsonify(error='No se ha podido verificar una cuenta docente autorizada.'), 403
+            return jsonify(error='No se ha podido verificar una cuenta del dominio corporativo autorizado.'), 403
         return redirect(url_for('index'))
 
     @app.post('/generate')

@@ -16,12 +16,12 @@ from logic import InputError, TransferGrades
 def app(tmp_path):
     return create_app({'TESTING': True, 'SECRET_KEY': 's'*40,
         'TOKEN_ENCRYPTION_KEY': Fernet.generate_key(), 'PUBLIC_BASE_URL': 'https://school.test',
-        'TEACHER_DOMAIN': 'school.test', 'TEACHER_EMAILS': 'teacher@school.test,other@school.test',
+        'TEACHER_DOMAIN': 'school.test',
         'STUDENT_DOMAINS': 'students.test', 'DATABASE': str(tmp_path/'state.sqlite3')})
 
 def login(app, email='teacher@school.test'):
     client = app.test_client()
-    sid = app.extensions['store'].create_session({'email': email, 'sub': email, 'credentials': {'token':'TOP_SECRET'}}, 3600)
+    sid = app.extensions['store'].create_session({'email': email, 'hd': 'school.test', 'sub': email, 'credentials': {'token':'TOP_SECRET'}}, 3600)
     with client.session_transaction() as session:
         session.update(sid=sid, csrf='test-csrf')
     return client, sid
@@ -114,7 +114,7 @@ def test_csrf_origin_and_anonymous(app):
     client,_=login(app)
     assert client.post('/generate').status_code==403
     assert client.post('/generate',headers={'X-CSRF-Token':'test-csrf','Origin':'https://evil.test'}).status_code==403
-    client,_=login(app, 'removed@school.test')
+    client,_=login(app, 'external@other.test')
     assert post(client,'/generate').status_code==403
 
 def test_expiry_and_purge(app):
@@ -182,7 +182,7 @@ def oauth_setup(app, monkeypatch, overrides=None):
     monkeypatch.setattr('app.id_token.verify_oauth2_token',lambda *a,**k:claims)
     return client,oauth,sid
 
-@pytest.mark.parametrize('claims',[{'hd':'evil.test'},{'email_verified':False},{'nonce':'evil'}, {'sub':''}, {'email':'pupil@school.test'}])
+@pytest.mark.parametrize('claims',[{'hd':'evil.test'},{'email_verified':False},{'nonce':'evil'}, {'sub':''}, {'email':'pupil@students.test'}, {'email':'user@sub.school.test'}, {'email':'user@school.test.evil.test'}, {'hd':None}, {'email':'user@gmail.com'}])
 def test_oauth_rejects_bad_identity(app,monkeypatch,claims):
     client,oauth,sid=oauth_setup(app,monkeypatch,claims)
     assert client.get('/oauth2callback?state=state&code=code').status_code==403
@@ -274,4 +274,32 @@ def test_new_folder_never_reuses_old_or_shares_parent():
 def test_revoke_cli(app):
     client,sid=login(app)
     assert app.test_cli_runner().invoke(args=['revoke-sessions']).exit_code==0
+    assert app.extensions['store'].session(sid) is None
+
+
+@pytest.mark.parametrize('email', ['new.employee@school.test', 'NEW.EMPLOYEE@SCHOOL.TEST'])
+def test_corporate_employee_without_individual_list(app, monkeypatch, email):
+    assert 'TEACHER_EMAILS' not in app.config
+    client, _, _ = oauth_setup(app, monkeypatch, {'email': email})
+    assert client.get('/oauth2callback?state=state&code=code').status_code == 302
+    with client.session_transaction() as session:
+        identity = app.extensions['store'].session(session['sid'])
+    assert identity['email'] == email.lower()
+    assert identity['hd'] == 'school.test'
+    assert b'Conectar con Google Drive' not in client.get('/').data
+
+
+def test_domain_change_revokes_existing_session(app):
+    client, sid = login(app)
+    app.config['TEACHER_DOMAIN'] = 'new-school.test'
+    client.get('/')
+    assert app.extensions['store'].session(sid) is None
+
+
+def test_legacy_session_requires_new_google_login(app):
+    client = app.test_client()
+    sid = app.extensions['store'].create_session({'email': 'teacher@school.test', 'sub': 'subject'}, 3600)
+    with client.session_transaction() as session:
+        session.update(sid=sid, csrf='test-csrf')
+    assert b'Conectar con Google Drive' in client.get('/').data
     assert app.extensions['store'].session(sid) is None
