@@ -70,7 +70,7 @@ def test_bad_source_rejected(rows):
         TransferGrades(None).copy_grades(workbook(rows),CONFIG,{'students.test'})
 
 @pytest.mark.parametrize('change',[{'numero_cabecera':'51'},{'letra_columna_nombre':'../x'},{'letra_columna_nombre':'B'},
-    {'plantilla_cabecera':'template'},{'lista_otras_hoja':'Secreto'},{'nombre_hoja':'Missing'}])
+    {'lista_otras_hoja':'Secreto'},{'nombre_hoja':'Missing'}])
 def test_bad_config_rejected(change):
     with pytest.raises(InputError):
         TransferGrades(None).copy_grades(workbook(),CONFIG|change,{'students.test'})
@@ -84,6 +84,26 @@ def test_literal_not_formula():
     item=TransferGrades(None).copy_grades(source,CONFIG,{'students.test'})[0]
     out=openpyxl.load_workbook(item['content'])
     assert out.active['C2'].data_type=='s'
+
+def test_reviewed_header_template_preserves_complex_layout_only():
+    template_wb=openpyxl.Workbook(); template_ws=template_wb.active
+    template_ws.title='Notas'; template_ws.merge_cells('A1:C1'); template_ws['A1']='Cabecera agrupada'
+    template_ws.column_dimensions.group('B','C',hidden=True,outline_level=1)
+    template=io.BytesIO(); template_wb.save(template); template_wb.close(); template.seek(0)
+    items=TransferGrades(None).copy_grades(workbook(),CONFIG|{'plantilla_cabecera':'plantilla'},
+        {'students.test'},template)
+    out=openpyxl.load_workbook(items[0]['content'])
+    assert out.sheetnames==['Evaluación'] and 'A1:C1' in out.active.merged_cells
+    assert out.active.column_dimensions['B'].hidden
+    assert out.active['A2'].value=='Ana' and out.active['B2'].value=='ana@students.test'
+
+def test_template_rejects_content_below_header():
+    template_wb=openpyxl.Workbook(); template_ws=template_wb.active
+    template_ws['A1']='Cabecera'; template_ws['A2']='Otro alumno'
+    template=io.BytesIO(); template_wb.save(template); template.seek(0)
+    with pytest.raises(InputError):
+        TransferGrades(None).copy_grades(workbook(),CONFIG|{'plantilla_cabecera':'plantilla'},
+            {'students.test'},template)
 
 def test_concurrent_processing_isolated():
     def run(name):
@@ -157,12 +177,12 @@ def test_permission_safety_and_reader():
     drive=MagicMock()
     drive.permissions().list().execute.return_value={'permissions':[{'type':'user','role':'owner'}]}
     transfer=TransferGrades(drive)
-    transfer.share({'file_id':'own','email':'ana@students.test'})
+    transfer.share({'file_id':'file','folder_id':'own','email':'ana@students.test'})
     args=drive.permissions().create.call_args.kwargs
     assert args['body']['role']=='reader' and args['fileId']=='own'
     drive.permissions().list().execute.return_value={'permissions':[{'type':'anyone','role':'reader'}]}
     drive.permissions().create.reset_mock()
-    with pytest.raises(InputError): transfer.share({'file_id':'own','email':'ana@students.test'})
+    with pytest.raises(InputError): transfer.share({'file_id':'file','folder_id':'own','email':'ana@students.test'})
     drive.permissions().create.assert_not_called()
 
 def test_ambiguous_source_and_query_escaping():
@@ -206,7 +226,9 @@ def pipeline(app, monkeypatch):
     monkeypatch.setattr('app.Credentials.from_authorized_user_info',lambda info:Credentials('fake-token'))
     monkeypatch.setattr('app.build',lambda *a,**k:MagicMock())
     monkeypatch.setattr(TransferGrades,'download',lambda *a:workbook())
-    monkeypatch.setattr(TransferGrades,'new_folder',lambda self,job:'new-private-folder')
+    monkeypatch.setattr(TransferGrades,'resolve_folder_path',lambda self,path:'target-folder')
+    monkeypatch.setattr(TransferGrades,'new_folder',lambda self,job,parent:'new-private-folder')
+    monkeypatch.setattr(TransferGrades,'new_student_folder',lambda self,name,parent:'folder-'+name)
     monkeypatch.setattr(TransferGrades,'upload',lambda self,item,*a:'id-'+item['name'])
     monkeypatch.setattr(TransferGrades,'assert_private',lambda *a:None)
     sent=[]
@@ -257,19 +279,35 @@ def test_generation_failure_not_shareable(app,monkeypatch):
     assert app.extensions['store'].job(job,sid)['state']=='failed'
     assert post(client,'/notify',json={'batch_id':job,'confirmed':True}).status_code==409
 
-def test_reject_generation_without_review_and_old_target(app,monkeypatch):
+def test_reject_generation_without_review_and_accept_private_target(app,monkeypatch):
     client,_,_=pipeline(app,monkeypatch)
     assert post(client,'/generate',data=CONFIG).status_code==400
-    assert post(client,'/generate',data=CONFIG|{'reviewed_source':'yes','target_folder_id':'old'}).status_code==400
+    response=post(client,'/generate',data=CONFIG|{'nombre_excel_notas':'source',
+        'reviewed_source':'yes','target_folder_path':'Curso/Notas'})
+    assert response.status_code==200
 
-def test_new_folder_never_reuses_old_or_shares_parent():
+def test_new_batch_and_student_folders_never_reuse_or_share_parent():
     drive=MagicMock()
-    drive.files().create().execute.return_value={'id':'new'}
+    drive.files().create().execute.side_effect=[{'id':'batch'},{'id':'student'}]
+    drive.files().create.reset_mock()
     drive.permissions().list().execute.return_value={'permissions':[{'type':'user','role':'owner'}]}
-    assert TransferGrades(drive).new_folder('batch')=='new'
-    assert drive.files().create.call_args.kwargs['body']['parents']==['root']
+    transfer=TransferGrades(drive)
+    assert transfer.new_folder('batch','target')=='batch'
+    assert transfer.new_student_folder('Ana','batch')=='student'
+    calls=drive.files().create.call_args_list
+    assert calls[0].kwargs['body']['parents']==['target']
+    assert calls[1].kwargs['body']['parents']==['batch']
     drive.files().list.assert_not_called()
     drive.permissions().create.assert_not_called()
+
+def test_target_path_rejects_shared_or_ambiguous_folder():
+    drive=MagicMock(); transfer=TransferGrades(drive)
+    drive.files().list().execute.return_value={'files':[{'id':'one'},{'id':'two'}]}
+    with pytest.raises(InputError): transfer.resolve_folder_path('Curso')
+    drive.files().list().execute.return_value={'files':[{'id':'shared'}]}
+    drive.permissions().list().execute.return_value={
+        'permissions':[{'type':'user','role':'owner'},{'type':'anyone','role':'reader'}]}
+    with pytest.raises(InputError): transfer.resolve_folder_path('Curso')
 
 def test_revoke_cli(app):
     client,sid=login(app)

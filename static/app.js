@@ -47,7 +47,7 @@ if (form) {
         notify.disabled = true;
         try {
             await post('/notify', {batch_id: batchId, confirmed: true}, true);
-            show('Archivos compartidos en modo lectura. La carpeta permanece privada.', true);
+            show('Carpetas individuales compartidas en modo lectura. El lote permanece privado.', true);
         } catch (error) {
             show(error.message + ' Si se interrumpió la conexión, revisa Drive antes de generar otro lote.');
         }

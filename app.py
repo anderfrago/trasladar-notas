@@ -22,14 +22,24 @@ SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email',
           'https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/drive.file']
 
 def create_app(config=None):
-    load_dotenv(Path(__file__).with_name('.env'))
+    project_dir = Path(__file__).resolve().parent
+    load_dotenv(project_dir / '.env')
+    client_secrets = Path(os.getenv('GOOGLE_CLIENT_SECRETS', 'oauth_credentials.json')).expanduser()
+    if not client_secrets.is_absolute():
+        client_secrets = project_dir / client_secrets
     app = Flask(__name__)
     app.config.from_mapping(
         SECRET_KEY=os.getenv('SECRET_KEY', ''), TOKEN_ENCRYPTION_KEY=os.getenv('TOKEN_ENCRYPTION_KEY', ''),
         PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL', ''),
+<<<<<<< HEAD
         GOOGLE_CLIENT_SECRETS=os.getenv('GOOGLE_CLIENT_SECRETS', 'oauth_credentials.json'),
         TEACHER_DOMAIN=os.getenv('TEACHER_DOMAIN', ''),
         STUDENT_DOMAINS=os.getenv('STUDENT_DOMAINS', ''),
+=======
+        GOOGLE_CLIENT_SECRETS=str(client_secrets),
+        TEACHER_DOMAIN=os.getenv('TEACHER_DOMAIN', '').lower(),
+        TEACHER_EMAILS=os.getenv('TEACHER_EMAILS', ''), STUDENT_DOMAINS=os.getenv('STUDENT_DOMAINS', ''),
+>>>>>>> fda29c737c782d0fb10bab763be674f4f2b8e949
         DATABASE=os.getenv('DATABASE', str(Path(app.instance_path) / 'private.sqlite3')),
         SESSION_COOKIE_SECURE=os.getenv('COOKIE_SECURE', 'true').lower() == 'true',
         SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
@@ -152,20 +162,26 @@ def create_app(config=None):
         config = request.form.to_dict()
         if config.get('reviewed_source') != 'yes':
             return jsonify(error='Confirma que has revisado cabeceras, columnas, comentarios y destinatarios.'), 400
-        if config.get('target_folder_id'):
-            return jsonify(error='Esta versión crea una carpeta privada nueva en Mi unidad.'), 400
         job = None
         payload = {'items': []}
         try:
             transfer = TransferGrades(service())
             source = transfer.download(config.get('nombre_excel_notas', ''), config.get('extension') == 'Google Sheet')
-            items = transfer.copy_grades(source, config, domains)
+            template = None
+            if config.get('plantilla_cabecera', '').strip():
+                template = transfer.download(config['plantilla_cabecera'].strip(),
+                    config.get('extension_cabecera') == 'Google Sheet')
+            items = transfer.copy_grades(source, config, domains, template)
             job = store.create_job(session['sid'])
-            payload['folder_id'] = transfer.new_folder(job)
+            target_path = config.get('target_folder_path', '')
+            target_folder = transfer.resolve_folder_path(target_path)
+            payload['folder_id'] = transfer.new_folder(job, target_folder)
             store.save_job(job, payload, 'generating')
             for item in items:
-                file_id = transfer.upload(item, payload['folder_id'], config.get('extension') == 'Google Sheet')
-                payload['items'].append({'name': item['name'], 'email': item['email'], 'file_id': file_id, 'status': 'pending'})
+                student_folder = transfer.new_student_folder(item['name'], payload['folder_id'])
+                file_id = transfer.upload(item, student_folder, config.get('extension') == 'Google Sheet')
+                payload['items'].append({'name': item['name'], 'email': item['email'],
+                    'folder_id': student_folder, 'file_id': file_id, 'status': 'pending'})
                 store.save_job(job, payload, 'generating')
                 transfer.assert_private(file_id)
             store.save_job(job, payload, 'ready')
@@ -197,7 +213,8 @@ def create_app(config=None):
             for item in payload['items']:
                 if item['email'].rsplit('@', 1)[-1] not in domains:
                     raise InputError('El dominio del destinatario ya no está autorizado.')
-                transfer.assert_private(item['file_id'], item['email'])
+                transfer.assert_private(item['folder_id'], item['email'])
+                transfer.assert_private(item['file_id'])
             for item in payload['items']:
                 transfer.share(item)
                 item['status'] = 'shared'
