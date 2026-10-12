@@ -79,3 +79,8 @@ Instalar `requirements-dev.txt` y ejecutar `python -m pytest tests -q`. Las prue
 El cuaderno `.ipynb` y el `index.html` de la raíz son referencias históricas, no forman parte del flujo revisado ni del paquete para desplegar. No usarlos como alternativa a estos controles.
 
 La actualización del contenido usa `files.update`, también al importar a Google Sheets: [documentación de Google Drive](https://developers.google.com/workspace/drive/api/guides/manage-uploads).
+
+
+### Comentarios del alumnado
+
+La carpeta individual se comparte como lector. Si la salida es Google Sheets, su documento se comparte como comentarista, sin editar celdas. Los archivos Excel conservan acceso de lectura. Al reutilizar carpetas y archivos se reducen los antiguos permisos de editor del alumno destinatario a esta combinación; no se modifican permisos de terceros y se bloquea su presencia. Si el permiso se hereda de otra carpeta y Google no permite reducirlo, habrá que corregirlo en el origen. La confirmación docente sigue siendo necesaria para conceder nuevos accesos; un alumno con acceso previo verá el contenido actualizado al generar.

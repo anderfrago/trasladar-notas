@@ -50,3 +50,8 @@ flowchart TD
 Con una pestaña indicada, el destino contiene directamente `Apellidos, Nombre__Nombre del archivo`, y dentro `Nombre de la pestaña.xlsx` (sin extensión si se convierte a Google Sheets). El nombre del alumno procede tal cual de su columna, sin reordenar nombres y apellidos. No se crea ninguna carpeta `Evaluaciones …`.
 
 Si no se indica pestaña, se conserva la alternativa del notebook: carpeta con el nombre del alumno y documento `Nombre del alumno__Nombre del archivo.xlsx`. Si la carpeta individual ya existe en el destino, se reutiliza. Si contiene un documento del mismo nombre y tipo, se reemplaza su contenido conservando su identificador y permisos. Se rechazan coincidencias múltiples y permisos de otras personas. Si ya estaba compartido, el alumno podrá ver la actualización al generar, sin esperar a una nueva notificación. El lote sigue siendo un registro interno para revisión y permisos, no una carpeta de Drive.
+
+
+### Comentarios del alumnado
+
+La carpeta individual se comparte como lector. Si la salida es Google Sheets, su documento se comparte como comentarista, sin editar celdas. Los archivos Excel conservan acceso de lectura. Al reutilizar carpetas y archivos se reducen los antiguos permisos de editor del alumno destinatario a esta combinación; no se modifican permisos de terceros y se bloquea su presencia. Si el permiso se hereda de otra carpeta y Google no permite reducirlo, habrá que corregirlo en el origen. La confirmación docente sigue siendo necesaria para conceder nuevos accesos; un alumno con acceso previo verá el contenido actualizado al generar.

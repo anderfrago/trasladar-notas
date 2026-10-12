@@ -370,7 +370,7 @@ def test_reuses_folder_and_updates_file_preserving_ids(convert):
     assert drive.files().update.call_args.kwargs['fileId']=='existing'
     assert 'parents' not in drive.files().update.call_args.kwargs['body']
     drive.files().create.assert_not_called()
-    transfer.share({'folder_id':'student','email':'ana@students.test'})
+    transfer.share({'folder_id':'student','file_id':'existing','email':'ana@students.test'})
     drive.permissions().create.assert_not_called()
 
 @pytest.mark.parametrize('matches', [[{'id':'a','mimeType':'application/vnd.google-apps.folder'},{'id':'b','mimeType':'application/vnd.google-apps.folder'}], [{'id':'a','mimeType':'text/plain'}]])
@@ -387,3 +387,28 @@ def test_existing_folder_for_other_student_is_not_reused():
     with pytest.raises(InputError): TransferGrades(drive).new_student_folder('Ana__Curso','target','ana@students.test')
     drive.files().create.assert_not_called()
     drive.files().update.assert_not_called()
+
+
+@pytest.mark.parametrize('existing', [False, True])
+def test_sheet_comments_and_folder_reader(existing):
+    drive=MagicMock(); transfer=TransferGrades(drive)
+    owner={'type':'user','role':'owner'}
+    reader={'id':'student-permission','type':'user','role':'reader','emailAddress':'ana@students.test'}
+    drive.permissions().list().execute.return_value={'permissions':[owner,reader] if existing else [owner]}
+    transfer.share({'folder_id':'folder','file_id':'sheet','email':'ana@students.test','file_role':'commenter'})
+    if existing:
+        args=drive.permissions().update.call_args.kwargs
+        assert args['fileId']=='sheet' and args['body']['role']=='commenter'
+        drive.permissions().create.assert_not_called()
+    else:
+        args=[c.kwargs for c in drive.permissions().create.call_args_list]
+        assert [(c['fileId'],c['body']['role']) for c in args]==[('sheet','commenter'),('folder','reader')]
+
+
+def test_old_editor_is_downgraded_only_for_expected_student():
+    drive=MagicMock();transfer=TransferGrades(drive)
+    writer={'id':'student','type':'user','emailAddress':'ana@students.test','role':'writer'}
+    reader=writer|{'role':'reader'}
+    drive.permissions().list().execute.side_effect=[{'permissions':[writer]},{'permissions':[writer]},{'permissions':[reader]}]
+    transfer.normalize_existing_access('folder','ana@students.test','reader')
+    assert drive.permissions().update.call_args.kwargs=={'fileId':'folder','permissionId':'student','body':{'role':'reader'},'fields':'id'}

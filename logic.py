@@ -170,13 +170,13 @@ class TransferGrades:
             if not token:
                 return result
 
-    def assert_private(self, file_id, email=None):
+    def assert_private(self, file_id, email=None, roles=('reader',)):
         for p in self.permissions(file_id):
             if p.get('role') == 'owner' and p.get('type') == 'user':
                 continue
-            if email and p.get('type') == 'user' and p.get('emailAddress', '').lower() == email and p.get('role') == 'reader':
+            if email and p.get('type') == 'user' and p.get('emailAddress', '').lower() == email and p.get('role') in roles:
                 continue
-            raise InputError('El archivo tiene permisos adicionales. Revisa los permisos en Drive antes de continuar.')
+            raise InputError(f'El elemento de Drive {file_id} tiene un permiso no admitido ({p.get("type", "desconocido")}: {p.get("role", "desconocido")}). Revisa Compartir: solo propietario y alumno destinatario con el permiso previsto.')
 
     def upload(self, item, folder_id, convert):
         name = re.sub(r'[\\/\x00-\x1f]', '_', item['file_name']).strip()
@@ -188,7 +188,7 @@ class TransferGrades:
         existing = self.find_child(name, folder_id, kind)
         media = MediaIoBaseUpload(item['content'], mimetype=XLSX)
         if existing:
-            self.assert_private(existing, item['email'])
+            self.normalize_existing_access(existing, item['email'], 'commenter' if convert else 'reader')
             file = self.drive.files().update(fileId=existing,
                 body={'mimeType': kind}, media_body=media, fields='id').execute()
         else:
@@ -245,18 +245,41 @@ class TransferGrades:
             raise InputError('No se puede crear la carpeta del alumno: el nombre no es válido.')
         existing = self.find_child(safe_name, parent_id, FOLDER)
         if existing:
-            self.assert_private(existing, email)
+            self.normalize_existing_access(existing, email, 'reader')
             return existing
         folder = self.drive.files().create(body={
             'name': safe_name, 'mimeType': FOLDER, 'parents': [parent_id]}, fields='id').execute()
         self.assert_private(folder['id'])
         return folder['id']
 
+    def normalize_existing_access(self, file_id, email, role):
+        # Only downgrade the intended student's old editing access. Never alter third-party access.
+        self.assert_private(file_id, email, ('reader', 'commenter', 'writer'))
+        for permission in self.permissions(file_id):
+            if permission.get('type') == 'user' and permission.get('emailAddress', '').lower() == email and permission.get('role') != 'owner':
+                if permission.get('role') == 'writer' or (role == 'reader' and permission.get('role') == 'commenter'):
+                    self.drive.permissions().update(fileId=file_id, permissionId=permission['id'], body={'role':role}, fields='id').execute()
+        self.assert_private(file_id, email, ('reader', 'commenter') if role == 'commenter' else ('reader',))
+
     def share(self, item):
-        self.assert_private(item['folder_id'], item['email'])
-        if any(p.get('type') == 'user' and p.get('emailAddress', '').lower() == item['email']
-               for p in self.permissions(item['folder_id'])):
-            return
-        self.drive.permissions().create(fileId=item['folder_id'],
-            body={'type': 'user', 'emailAddress': item['email'], 'role': 'reader'},
-            sendNotificationEmail=True, fields='id').execute()
+        email = item['email']
+        role = item.get('file_role', 'reader')
+        if role not in ('reader', 'commenter'):
+            raise InputError('Permiso de documento no válido.')
+        self.assert_private(item['folder_id'], email)
+        self.assert_private(item['file_id'], email, ('reader', 'commenter') if role == 'commenter' else ('reader',))
+        if role == 'commenter':
+            # An inherited reader may be upgraded on the individual document.
+            existing = next((p for p in self.permissions(item['file_id'])
+                if p.get('type') == 'user' and p.get('emailAddress', '').lower() == email), None)
+            if existing and existing.get('role') == 'reader':
+                self.drive.permissions().update(fileId=item['file_id'], permissionId=existing['id'], body={'role':'commenter'}, fields='id').execute()
+            elif not existing:
+                self.drive.permissions().create(fileId=item['file_id'],
+                    body={'type':'user', 'emailAddress':email, 'role':'commenter'},
+                    sendNotificationEmail=True, fields='id').execute()
+        if not any(p.get('type') == 'user' and p.get('emailAddress', '').lower() == email
+                   for p in self.permissions(item['folder_id'])):
+            self.drive.permissions().create(fileId=item['folder_id'],
+                body={'type':'user', 'emailAddress':email, 'role':'reader'},
+                sendNotificationEmail=True, fields='id').execute()

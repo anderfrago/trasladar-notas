@@ -43,7 +43,7 @@ if (form) {
         finally { submit.disabled = false; }
     });
     notify.addEventListener('click', async () => {
-        if (!confirm('¿Has revisado cada archivo y confirmado que corresponde a su destinatario? Google compartirá los archivos en modo lectura y enviará las notificaciones.')) return;
+        if (!confirm('¿Has revisado cada archivo y confirmado que corresponde a su destinatario? Google compartirá la carpeta como lector y el documento Google Sheets como comentarista (Excel como lector), y enviará las notificaciones.')) return;
         notify.disabled = true;
         try {
             await post('/notify', {batch_id: batchId, confirmed: true}, true);
