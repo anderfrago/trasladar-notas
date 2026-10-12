@@ -145,7 +145,14 @@ class TransferGrades:
                 if total_size > 50 * 1024 * 1024 or len(results) >= 500:
                     raise InputError('Divide el lote: máximo 500 destinatarios y 50 MB de copias.')
                 data.seek(0)
-                results.append({'name': name, 'email': email, 'content': data})
+                source_name = config.get('nombre_excel_notas', '').strip()
+                if source_name.lower().endswith('.xlsx'):
+                    source_name = source_name[:-5]
+                selected_sheet = config.get('nombre_hoja', '').strip()
+                folder_name = f'{name}__{source_name}' if selected_sheet else name
+                file_name = selected_sheet if selected_sheet else f'{name}__{source_name}'
+                results.append({'name': name, 'email': email, 'content': data,
+                    'folder_name': folder_name, 'file_name': file_name})
             if not results:
                 raise InputError('No hay filas de alumnado para repartir.')
             return results
@@ -172,8 +179,11 @@ class TransferGrades:
             raise InputError('El archivo tiene permisos adicionales. Revisa los permisos en Drive antes de continuar.')
 
     def upload(self, item, folder_id, convert):
+        name = re.sub(r'[\\/\x00-\x1f]', '_', item['file_name']).strip()
+        if not name:
+            raise InputError('El nombre del documento no es válido.')
         file = self.drive.files().create(body={
-            'name': 'Evaluación' if convert else 'Evaluación.xlsx',
+            'name': name if convert else name + '.xlsx',
             'mimeType': SHEET if convert else XLSX, 'parents': [folder_id]},
             media_body=MediaIoBaseUpload(item['content'], mimetype=XLSX), fields='id').execute()
         return file['id']
@@ -209,14 +219,8 @@ class TransferGrades:
             self.assert_private(parent_id)
         return parent_id
 
-    def new_folder(self, batch_id, parent_id='root'):
-        folder = self.drive.files().create(body={'name': f'Evaluaciones {batch_id}',
-            'mimeType': FOLDER, 'parents': [parent_id]}, fields='id').execute()
-        self.assert_private(folder['id'])
-        return folder['id']
-
     def new_student_folder(self, name, parent_id):
-        safe_name = re.sub(r'[\\/\x00-\x1f]', '_', name).strip()[:100]
+        safe_name = re.sub(r'[\\/\x00-\x1f]', '_', name).strip()[:350]
         if not safe_name:
             raise InputError('No se puede crear la carpeta del alumno: el nombre no es válido.')
         folder = self.drive.files().create(body={

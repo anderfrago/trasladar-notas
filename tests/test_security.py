@@ -227,7 +227,6 @@ def pipeline(app, monkeypatch):
     monkeypatch.setattr('app.build',lambda *a,**k:MagicMock())
     monkeypatch.setattr(TransferGrades,'download',lambda *a:workbook())
     monkeypatch.setattr(TransferGrades,'resolve_folder_path',lambda self,path:'target-folder')
-    monkeypatch.setattr(TransferGrades,'new_folder',lambda self,job,parent:'new-private-folder')
     monkeypatch.setattr(TransferGrades,'new_student_folder',lambda self,name,parent:'folder-'+name)
     monkeypatch.setattr(TransferGrades,'upload',lambda self,item,*a:'id-'+item['name'])
     monkeypatch.setattr(TransferGrades,'assert_private',lambda *a:None)
@@ -286,19 +285,31 @@ def test_reject_generation_without_review_and_accept_private_target(app,monkeypa
         'reviewed_source':'yes','target_folder_path':'Curso/Notas'})
     assert response.status_code==200
 
-def test_new_batch_and_student_folders_never_reuse_or_share_parent():
+def test_student_folder_is_created_directly_in_target():
     drive=MagicMock()
-    drive.files().create().execute.side_effect=[{'id':'batch'},{'id':'student'}]
+    drive.files().create().execute.return_value={'id':'student'}
     drive.files().create.reset_mock()
     drive.permissions().list().execute.return_value={'permissions':[{'type':'user','role':'owner'}]}
     transfer=TransferGrades(drive)
-    assert transfer.new_folder('batch','target')=='batch'
-    assert transfer.new_student_folder('Ana','batch')=='student'
-    calls=drive.files().create.call_args_list
-    assert calls[0].kwargs['body']['parents']==['target']
-    assert calls[1].kwargs['body']['parents']==['batch']
+    assert transfer.new_student_folder('García, Ana__Notas del curso','target')=='student'
+    body=drive.files().create.call_args.kwargs['body']
+    assert body['parents']==['target']
+    assert body['name']=='García, Ana__Notas del curso'
     drive.files().list.assert_not_called()
     drive.permissions().create.assert_not_called()
+
+@pytest.mark.parametrize('sheet,folder,filename', [('Notas','Ana__Curso','Notas'), ('','Ana','Ana__Curso')])
+def test_names_match_notebook(sheet,folder,filename):
+    transfer=TransferGrades(MagicMock())
+    items=transfer.copy_grades(workbook(), CONFIG|{'nombre_excel_notas':'Curso.xlsx','nombre_hoja':sheet}, {'students.test'})
+    assert items[0]['folder_name']==folder
+    assert items[0]['file_name']==filename
+    for convert in [False,True]:
+        transfer.upload(items[0],'student',convert)
+        body=transfer.drive.files().create.call_args.kwargs['body']
+        assert body['name']==filename+('' if convert else '.xlsx')
+        assert body['parents']==['student']
+
 
 def test_target_path_rejects_shared_or_ambiguous_folder():
     drive=MagicMock(); transfer=TransferGrades(drive)

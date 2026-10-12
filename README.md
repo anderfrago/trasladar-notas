@@ -4,7 +4,7 @@ Aplicación Flask para generar documentos individuales de evaluación a partir d
 
 **Antes de actualizar:** lee [la guía de privacidad, funcionamiento y despliegue](docs/PRIVACIDAD_Y_ACTUALIZACION.md). Incluye el diagrama, la configuración necesaria, los cambios de comportamiento y los requisitos pendientes del centro.
 
-El acceso se permite a cuentas Google Workspace verificadas del dominio corporativo configurado en `TEACHER_DOMAIN`, sin lista individual de correos. En Cuatrovientos, `cuatrovientos.org` corresponde al personal; el centro debe autorizar este alcance de uso. Cada persona conserva únicamente los permisos de su propia cuenta de Drive. Se crea un lote privado en la ruta de Drive elegida, con una carpeta y un archivo por alumno; la carpeta individual se comparte con su destinatario en modo lectura. El servidor vincula cada lote a la sesión que lo creó. Se requiere revisión humana de las cabeceras, todas las columnas, comentarios y destinatarios.
+El acceso se permite a cuentas Google Workspace verificadas del dominio corporativo configurado en `TEACHER_DOMAIN`, sin lista individual de correos. En Cuatrovientos, `cuatrovientos.org` corresponde al personal; el centro debe autorizar este alcance de uso. Cada persona conserva únicamente los permisos de su propia cuenta de Drive. En la ruta de Drive elegida se crea directamente una carpeta privada y un archivo por alumno, sin carpeta intermedia de lote; la carpeta individual se comparte con su destinatario en modo lectura. El servidor vincula cada lote a la sesión que lo creó. Se requiere revisión humana de las cabeceras, todas las columnas, comentarios y destinatarios.
 
 Las plantillas y pestañas adicionales están deshabilitadas; no se copian fórmulas ni se reutilizan carpetas. Las calificaciones de Drive y las descargas requieren una política de conservación del centro. El borrado de sesiones no elimina esos documentos.
 
@@ -43,3 +43,10 @@ flowchart TD
     S --> X["Cierre o limpieza de caducados: sesión y lote técnico"]
     I --> K["Retirada de documentos y permisos: gestión separada en Drive"]
 ```
+
+
+### Carpetas y nombres del notebook original
+
+Con una pestaña indicada, el destino contiene directamente `Apellidos, Nombre__Nombre del archivo`, y dentro `Nombre de la pestaña.xlsx` (sin extensión si se convierte a Google Sheets). El nombre del alumno procede tal cual de su columna, sin reordenar nombres y apellidos. No se crea ninguna carpeta `Evaluaciones …`.
+
+Si no se indica pestaña, se conserva la alternativa del notebook: carpeta con el nombre del alumno y documento `Nombre del alumno__Nombre del archivo.xlsx`. Cada ejecución crea carpetas nuevas; no reutiliza ni sobrescribe carpetas existentes. El lote sigue siendo un registro interno para revisión y permisos, no una carpeta de Drive.

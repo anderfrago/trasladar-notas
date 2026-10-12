@@ -169,10 +169,11 @@ def create_app(config=None):
             job = store.create_job(session['sid'])
             target_path = config.get('target_folder_path', '')
             target_folder = transfer.resolve_folder_path(target_path)
-            payload['folder_id'] = transfer.new_folder(job, target_folder)
+            transfer.assert_private(target_folder)
+            payload['folder_id'] = target_folder
             store.save_job(job, payload, 'generating')
             for item in items:
-                student_folder = transfer.new_student_folder(item['name'], payload['folder_id'])
+                student_folder = transfer.new_student_folder(item['folder_name'], target_folder)
                 file_id = transfer.upload(item, student_folder, config.get('extension') == 'Google Sheet')
                 payload['items'].append({'name': item['name'], 'email': item['email'],
                     'folder_id': student_folder, 'file_id': file_id, 'status': 'pending'})
@@ -183,7 +184,7 @@ def create_app(config=None):
         except InputError as error:
             message = str(error)
         except Exception:
-            message = 'No se ha completado la generación. Revisa la cuenta, el archivo y la carpeta del lote en Drive.'
+            message = 'No se ha completado la generación. Revisa la cuenta, el archivo y las carpetas creadas en el destino de Drive.'
         if job:
             store.save_job(job, payload, 'failed')
         return jsonify(error=message, batch_id=job), 400
