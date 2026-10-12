@@ -11,7 +11,7 @@ flowchart TD
     D --> R[Selecciona hoja y revisa cabeceras, columnas, comentarios y correos]
     R --> G[Google Drive: lectura del original]
     G --> M[Procesamiento en memoria: cabecera y una fila por persona]
-    M --> P[Lote privado nuevo en la ruta elegida: carpeta y archivo por persona]
+    M --> P[Carpeta por persona en el destino: crear o actualizar documento]
     P --> V[Docente abre los archivos y verifica destinatarios]
     V --> C[Confirmación: servidor recupera su propio lote]
     C --> A[Comprueba permisos y comparte cada archivo en lectura]
@@ -30,11 +30,11 @@ flowchart TD
 - Se crea un libro limpio por persona, con valores, estilos y comentarios de la cabecera y de una fila. Se eliminan hipervínculos y autores originales de comentarios. Sin plantilla no se copian otras hojas, nombres definidos, metadatos originales, imágenes ni fórmulas. Las fórmulas requieren resultados previamente calculados y guardados: si faltan, se detiene el trabajo.
 - **Las cabeceras, todas las columnas de la pestaña seleccionada y el texto de los comentarios se copian**, incluso columnas ocultas. Deben revisarse y minimizarse en el original. Un número de filas de cabecera incorrecto puede incluir datos de alumnado en todas las copias. La casilla de revisión es una confirmación docente, no detección automática del contenido. Las hojas adicionales siguen rechazadas; la plantilla opcional se limita y valida como se describe a continuación.
 - Solo se admiten correos de los dominios de alumnado configurados; nombres/correos incompletos y destinatarios duplicados detienen el lote. Esto no demuestra que un correo pertenezca a la persona de la fila: es necesaria la revisión humana.
-- Se conserva la búsqueda por nombre, pero se exige un resultado único. El docente puede indicar una ruta privada de destino; se rechaza si es ambigua o hereda permisos de terceros. Cada ejecución crea un lote nuevo y, dentro, una carpeta nueva por alumno: nunca se reutilizan ni sobrescriben carpetas o documentos anteriores.
+- Se conserva la búsqueda por nombre, pero se exige un resultado único. El docente puede indicar una ruta privada de destino; se rechaza si es ambigua o hereda permisos de terceros. Las carpetas individuales se crean directamente en el destino o se reutilizan si existe una coincidencia única. El documento del mismo nombre y tipo se actualiza conservando su identificador y permisos. Antes se comprueba que solo tengan acceso el propietario y, en su caso, el alumno destinatario en modo lectura. Se rechazan duplicados, tipos distintos y accesos de terceros.
 - Puede usarse una plantilla de cabecera en Google Sheets o XLSX para conservar combinaciones, estilos y agrupaciones colapsables. Solo se admiten datos en las filas declaradas como cabecera; se eliminan otras pestañas e hipervínculos y se rechaza contenido situado debajo para impedir que la plantilla arrastre información de alumnado.
 - Antes de compartir se comprueban los permisos de la carpeta de destino, de cada carpeta individual y de cada documento. Se rechazan permisos de dominio, públicos, de grupos o de terceros. Cada alumno recibe permiso **lector sobre su carpeta individual**, nunca editor ni acceso al lote o a carpetas ajenas. El modo lector permite descargar/copiar; no permite responder a comentarios. Las políticas administrativas de Workspace y cambios manuales posteriores siguen fuera del control de la aplicación.
 - El navegador solo envía un identificador de lote y la confirmación; no puede aportar carpetas o destinatarios. El lote está vinculado a su sesión y se reclama atómicamente para evitar dos envíos simultáneos. Una interrupción o resultado parcial bloquea el reenvío automático: revisar en Drive, incluido el último destinatario cuya notificación pudiera haberse aceptado antes de un timeout.
-- Si falla una subida pueden quedar documentos privados. Revisa las carpetas individuales creadas directamente en el destino y elimina las copias innecesarias. No se crea una carpeta intermedia de lote. No se intenta borrar a ciegas después de un fallo. Cerrar sesión, volver al formulario o caducar el lote tampoco elimina esos documentos.
+- Si falla una subida pueden quedar documentos creados o actualizados, incluidos documentos ya compartidos. Revisa las carpetas individuales creadas directamente en el destino y elimina las copias innecesarias. No se crea una carpeta intermedia de lote. Si la carpeta ya estaba compartida, el alumno puede ver la actualización desde la generación; no se espera a otra notificación. No se intenta borrar ni revertir a ciegas después de un fallo. Cerrar sesión, volver al formulario o caducar el lote tampoco elimina esos documentos.
 - La consulta de permisos y la modificación de Drive no forman una transacción. No mover ni cambiar permisos manualmente durante el reparto. La prueba real controlada debe verificar las políticas del Workspace del centro.
 
 ## Permisos de Google
@@ -77,3 +77,5 @@ Estos cambios no certifican el cumplimiento del RGPD. Se han probado controles d
 Instalar `requirements-dev.txt` y ejecutar `python -m pytest tests -q`. Las pruebas comprueban aislamiento de personas/ejecuciones, acceso, cifrado, cierre y caducidad, OAuth, CSRF, lotes vinculados a sesión, reclamación concurrente, rechazo de destinos manipulados y permisos de lectura. No envían correos ni modifican Google Drive.
 
 El cuaderno `.ipynb` y el `index.html` de la raíz son referencias históricas, no forman parte del flujo revisado ni del paquete para desplegar. No usarlos como alternativa a estos controles.
+
+La actualización del contenido usa `files.update`, también al importar a Google Sheets: [documentación de Google Drive](https://developers.google.com/workspace/drive/api/guides/manage-uploads).

@@ -227,7 +227,7 @@ def pipeline(app, monkeypatch):
     monkeypatch.setattr('app.build',lambda *a,**k:MagicMock())
     monkeypatch.setattr(TransferGrades,'download',lambda *a:workbook())
     monkeypatch.setattr(TransferGrades,'resolve_folder_path',lambda self,path:'target-folder')
-    monkeypatch.setattr(TransferGrades,'new_student_folder',lambda self,name,parent:'folder-'+name)
+    monkeypatch.setattr(TransferGrades,'new_student_folder',lambda self,name,parent,email=None:'folder-'+name)
     monkeypatch.setattr(TransferGrades,'upload',lambda self,item,*a:'id-'+item['name'])
     monkeypatch.setattr(TransferGrades,'assert_private',lambda *a:None)
     sent=[]
@@ -287,6 +287,7 @@ def test_reject_generation_without_review_and_accept_private_target(app,monkeypa
 
 def test_student_folder_is_created_directly_in_target():
     drive=MagicMock()
+    drive.files().list().execute.return_value={'files':[]}
     drive.files().create().execute.return_value={'id':'student'}
     drive.files().create.reset_mock()
     drive.permissions().list().execute.return_value={'permissions':[{'type':'user','role':'owner'}]}
@@ -295,12 +296,13 @@ def test_student_folder_is_created_directly_in_target():
     body=drive.files().create.call_args.kwargs['body']
     assert body['parents']==['target']
     assert body['name']=='García, Ana__Notas del curso'
-    drive.files().list.assert_not_called()
     drive.permissions().create.assert_not_called()
 
 @pytest.mark.parametrize('sheet,folder,filename', [('Notas','Ana__Curso','Notas'), ('','Ana','Ana__Curso')])
 def test_names_match_notebook(sheet,folder,filename):
     transfer=TransferGrades(MagicMock())
+    transfer.drive.files().list().execute.return_value={'files':[]}
+    transfer.drive.permissions().list().execute.return_value={'permissions':[{'type':'user','role':'owner'}]}
     items=transfer.copy_grades(workbook(), CONFIG|{'nombre_excel_notas':'Curso.xlsx','nombre_hoja':sheet}, {'students.test'})
     assert items[0]['folder_name']==folder
     assert items[0]['file_name']==filename
@@ -352,3 +354,36 @@ def test_legacy_session_requires_new_google_login(app):
         session.update(sid=sid, csrf='test-csrf')
     assert b'Conectar con Google Drive' in client.get('/').data
     assert app.extensions['store'].session(sid) is None
+
+
+@pytest.mark.parametrize('convert', [False, True])
+def test_reuses_folder_and_updates_file_preserving_ids(convert):
+    from logic import FOLDER, SHEET, XLSX
+    drive=MagicMock()
+    drive.files().list().execute.side_effect=[{'files':[{'id':'student','mimeType':FOLDER}]}, {'files':[{'id':'existing','mimeType':SHEET if convert else XLSX}]}]
+    drive.permissions().list().execute.return_value={'permissions':[{'type':'user','role':'owner'}, {'type':'user','role':'reader','emailAddress':'ana@students.test'}]}
+    drive.files().update().execute.return_value={'id':'existing'}
+    drive.files().update.reset_mock()
+    transfer=TransferGrades(drive)
+    assert transfer.new_student_folder('Ana__Curso','target','ana@students.test')=='student'
+    assert transfer.upload({'file_name':'Notas','email':'ana@students.test','content':workbook()},'student',convert)=='existing'
+    assert drive.files().update.call_args.kwargs['fileId']=='existing'
+    assert 'parents' not in drive.files().update.call_args.kwargs['body']
+    drive.files().create.assert_not_called()
+    transfer.share({'folder_id':'student','email':'ana@students.test'})
+    drive.permissions().create.assert_not_called()
+
+@pytest.mark.parametrize('matches', [[{'id':'a','mimeType':'application/vnd.google-apps.folder'},{'id':'b','mimeType':'application/vnd.google-apps.folder'}], [{'id':'a','mimeType':'text/plain'}]])
+def test_reuse_rejects_ambiguous_or_wrong_type(matches):
+    drive=MagicMock(); drive.files().list().execute.return_value={'files':matches}
+    with pytest.raises(InputError): TransferGrades(drive).new_student_folder('Ana__Curso','target','ana@students.test')
+    drive.files().create.assert_not_called()
+
+
+def test_existing_folder_for_other_student_is_not_reused():
+    from logic import FOLDER
+    drive=MagicMock(); drive.files().list().execute.return_value={'files':[{'id':'student','mimeType':FOLDER}]}
+    drive.permissions().list().execute.return_value={'permissions':[{'type':'user','role':'reader','emailAddress':'other@students.test'}]}
+    with pytest.raises(InputError): TransferGrades(drive).new_student_folder('Ana__Curso','target','ana@students.test')
+    drive.files().create.assert_not_called()
+    drive.files().update.assert_not_called()

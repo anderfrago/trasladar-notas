@@ -173,12 +173,12 @@ def create_app(config=None):
             payload['folder_id'] = target_folder
             store.save_job(job, payload, 'generating')
             for item in items:
-                student_folder = transfer.new_student_folder(item['folder_name'], target_folder)
+                student_folder = transfer.new_student_folder(item['folder_name'], target_folder, item['email'])
                 file_id = transfer.upload(item, student_folder, config.get('extension') == 'Google Sheet')
                 payload['items'].append({'name': item['name'], 'email': item['email'],
                     'folder_id': student_folder, 'file_id': file_id, 'status': 'pending'})
                 store.save_job(job, payload, 'generating')
-                transfer.assert_private(file_id)
+                transfer.assert_private(file_id, item['email'])
             store.save_job(job, payload, 'ready')
             return jsonify(batch_id=job, items=payload['items'])
         except InputError as error:
@@ -209,7 +209,7 @@ def create_app(config=None):
                 if item['email'].rsplit('@', 1)[-1] not in domains:
                     raise InputError('El dominio del destinatario ya no está autorizado.')
                 transfer.assert_private(item['folder_id'], item['email'])
-                transfer.assert_private(item['file_id'])
+                transfer.assert_private(item['file_id'], item['email'])
             for item in payload['items']:
                 transfer.share(item)
                 item['status'] = 'shared'

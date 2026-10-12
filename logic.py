@@ -1,4 +1,4 @@
-"""Individual workbooks in memory; fresh private Drive files on every run."""
+"""Individual workbooks in memory; reuse checked student folders and update existing files."""
 import io
 import re
 import zipfile
@@ -182,11 +182,31 @@ class TransferGrades:
         name = re.sub(r'[\\/\x00-\x1f]', '_', item['file_name']).strip()
         if not name:
             raise InputError('El nombre del documento no es válido.')
-        file = self.drive.files().create(body={
-            'name': name if convert else name + '.xlsx',
-            'mimeType': SHEET if convert else XLSX, 'parents': [folder_id]},
-            media_body=MediaIoBaseUpload(item['content'], mimetype=XLSX), fields='id').execute()
+        name = name if convert else name + '.xlsx'
+        kind = SHEET if convert else XLSX
+        self.assert_private(folder_id, item['email'])
+        existing = self.find_child(name, folder_id, kind)
+        media = MediaIoBaseUpload(item['content'], mimetype=XLSX)
+        if existing:
+            self.assert_private(existing, item['email'])
+            file = self.drive.files().update(fileId=existing,
+                body={'mimeType': kind}, media_body=media, fields='id').execute()
+        else:
+            file = self.drive.files().create(body={
+                'name': name, 'mimeType': kind, 'parents': [folder_id]},
+                media_body=media, fields='id').execute()
         return file['id']
+
+    def find_child(self, name, parent_id, kind):
+        result = self.drive.files().list(
+            q=f"name = '{quote(name)}' and '{quote(parent_id)}' in parents and trashed = false",
+            fields='files(id,mimeType),nextPageToken', pageSize=2).execute()
+        matches = result.get('files', [])
+        if len(matches) > 1 or result.get('nextPageToken'):
+            raise InputError(f'Hay varios elementos llamados {name!r} en el destino. Revisa los duplicados en Drive.')
+        if matches and matches[0].get('mimeType') != kind:
+            raise InputError(f'El elemento {name!r} tiene un tipo distinto al esperado. Revisa el destino.')
+        return matches[0]['id'] if matches else None
 
     def resolve_folder_path(self, path):
         path = (path or '').strip()
@@ -219,10 +239,14 @@ class TransferGrades:
             self.assert_private(parent_id)
         return parent_id
 
-    def new_student_folder(self, name, parent_id):
+    def new_student_folder(self, name, parent_id, email=None):
         safe_name = re.sub(r'[\\/\x00-\x1f]', '_', name).strip()[:350]
         if not safe_name:
             raise InputError('No se puede crear la carpeta del alumno: el nombre no es válido.')
+        existing = self.find_child(safe_name, parent_id, FOLDER)
+        if existing:
+            self.assert_private(existing, email)
+            return existing
         folder = self.drive.files().create(body={
             'name': safe_name, 'mimeType': FOLDER, 'parents': [parent_id]}, fields='id').execute()
         self.assert_private(folder['id'])
