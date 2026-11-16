@@ -43,11 +43,11 @@ if (form) {
         finally { submit.disabled = false; }
     });
     notify.addEventListener('click', async () => {
-        if (!confirm('¿Has revisado cada archivo y confirmado que corresponde a su destinatario? Google compartirá la carpeta como lector y el documento Google Sheets como comentarista (Excel como lector), y enviará las notificaciones.')) return;
+        if (!confirm('¿Has revisado cada archivo y confirmado que corresponde a su destinatario? Se compartirá la carpeta como lector y Google Sheets como comentarista (Excel como lector). Si la carpeta ya estaba compartida, se retirará y restablecerá el acceso del alumno para solicitar de nuevo el correo de Google.')) return;
         notify.disabled = true;
         try {
             await post('/notify', {batch_id: batchId, confirmed: true}, true);
-            show('Carpetas individuales compartidas en modo lectura. El lote permanece privado.', true);
+            show('Carpetas individuales compartidas en modo lectura. Se ha solicitado a Google el correo de notificación para todos los destinatarios, también quienes ya tenían acceso.', true);
         } catch (error) {
             show(error.message + ' Si se interrumpió la conexión, revisa Drive antes de generar otro lote.');
         }

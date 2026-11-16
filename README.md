@@ -55,3 +55,9 @@ Si no se indica pestaña, se conserva la alternativa del notebook: carpeta con e
 ### Comentarios del alumnado
 
 La carpeta individual se comparte como lector. Si la salida es Google Sheets, su documento se comparte como comentarista, sin editar celdas. Los archivos Excel conservan acceso de lectura. Al reutilizar carpetas y archivos se reducen los antiguos permisos de editor del alumno destinatario a esta combinación; no se modifican permisos de terceros y se bloquea su presencia. Si el permiso se hereda de otra carpeta y Google no permite reducirlo, habrá que corregirlo en el origen. La confirmación docente sigue siendo necesaria para conceder nuevos accesos; un alumno con acceso previo verá el contenido actualizado al generar.
+
+### Correo en cada reparto
+
+Al confirmar «Compartir», se solicita a Google Drive un correo para cada destinatario. Si ya tenía acceso a su carpeta individual, se elimina únicamente ese permiso y se vuelve a crear como lector con `sendNotificationEmail=True`. Los identificadores y contenidos de los archivos se conservan, igual que el permiso directo de comentarista en Google Sheets. La creación de este último no solicita otro correo. No se utiliza Gmail API ni se añaden permisos OAuth.
+
+La renovación puede interrumpir brevemente el acceso heredado de la carpeta. Si falla después de retirar el permiso, el alumno puede quedar sin acceso: la aplicación muestra un error y bloquea el reenvío automático del lote para que el docente revise Drive. Una respuesta correcta confirma la solicitud de notificación, no su llegada a la bandeja de entrada. Véase [permissions.create de Google Drive](https://developers.google.com/workspace/drive/api/reference/rest/v3/permissions/create).

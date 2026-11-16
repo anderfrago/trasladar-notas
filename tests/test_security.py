@@ -361,7 +361,7 @@ def test_reuses_folder_and_updates_file_preserving_ids(convert):
     from logic import FOLDER, SHEET, XLSX
     drive=MagicMock()
     drive.files().list().execute.side_effect=[{'files':[{'id':'student','mimeType':FOLDER}]}, {'files':[{'id':'existing','mimeType':SHEET if convert else XLSX}]}]
-    drive.permissions().list().execute.return_value={'permissions':[{'type':'user','role':'owner'}, {'type':'user','role':'reader','emailAddress':'ana@students.test'}]}
+    drive.permissions().list().execute.return_value={'permissions':[{'type':'user','role':'owner'}, {'id':'student-permission','type':'user','role':'reader','emailAddress':'ana@students.test'}]}
     drive.files().update().execute.return_value={'id':'existing'}
     drive.files().update.reset_mock()
     transfer=TransferGrades(drive)
@@ -371,7 +371,10 @@ def test_reuses_folder_and_updates_file_preserving_ids(convert):
     assert 'parents' not in drive.files().update.call_args.kwargs['body']
     drive.files().create.assert_not_called()
     transfer.share({'folder_id':'student','file_id':'existing','email':'ana@students.test'})
-    drive.permissions().create.assert_not_called()
+    drive.permissions().delete.assert_called_once_with(fileId='student', permissionId='student-permission')
+    drive.permissions().create.assert_called_once_with(fileId='student',
+        body={'type':'user','emailAddress':'ana@students.test','role':'reader'},
+        sendNotificationEmail=True, fields='id')
 
 @pytest.mark.parametrize('matches', [[{'id':'a','mimeType':'application/vnd.google-apps.folder'},{'id':'b','mimeType':'application/vnd.google-apps.folder'}], [{'id':'a','mimeType':'text/plain'}]])
 def test_reuse_rejects_ambiguous_or_wrong_type(matches):
@@ -399,10 +402,12 @@ def test_sheet_comments_and_folder_reader(existing):
     if existing:
         args=drive.permissions().update.call_args.kwargs
         assert args['fileId']=='sheet' and args['body']['role']=='commenter'
-        drive.permissions().create.assert_not_called()
+        drive.permissions().delete.assert_called_once_with(fileId='folder', permissionId='student-permission')
+        assert drive.permissions().create.call_args.kwargs['sendNotificationEmail'] is True
     else:
         args=[c.kwargs for c in drive.permissions().create.call_args_list]
         assert [(c['fileId'],c['body']['role']) for c in args]==[('sheet','commenter'),('folder','reader')]
+        assert [c['sendNotificationEmail'] for c in args]==[False,True]
 
 
 def test_old_editor_is_downgraded_only_for_expected_student():
@@ -412,3 +417,63 @@ def test_old_editor_is_downgraded_only_for_expected_student():
     drive.permissions().list().execute.side_effect=[{'permissions':[writer]},{'permissions':[writer]},{'permissions':[reader]}]
     transfer.normalize_existing_access('folder','ana@students.test','reader')
     assert drive.permissions().update.call_args.kwargs=={'fileId':'folder','permissionId':'student','body':{'role':'reader'},'fields':'id'}
+
+
+@pytest.mark.parametrize('existing', [False, True])
+@pytest.mark.parametrize('role', ['reader', 'commenter'])
+def test_share_requests_one_folder_notification_with_or_without_prior_access(existing, role):
+    drive = MagicMock()
+    owner = {'id':'owner', 'type':'user', 'role':'owner'}
+    reader = {'id':'student', 'type':'user', 'role':'reader', 'emailAddress':'ana@students.test'}
+    drive.permissions().list().execute.return_value = {'permissions':[owner, reader] if existing else [owner]}
+    events = []
+    drive.permissions().delete.return_value.execute.side_effect = lambda: events.append('deleted')
+    drive.permissions().create.return_value.execute.side_effect = lambda: events.append('created')
+    TransferGrades(drive).share({'folder_id':'folder', 'file_id':'file',
+        'email':'ana@students.test', 'file_role':role})
+    creates = [call.kwargs for call in drive.permissions().create.call_args_list]
+    assert [c['fileId'] for c in creates if c['sendNotificationEmail']] == ['folder']
+    if existing:
+        assert events == ['deleted', 'created']
+        drive.permissions().delete.assert_called_once_with(fileId='folder', permissionId='student')
+    else:
+        drive.permissions().delete.assert_not_called()
+    drive.files().delete.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', ['delete', 'create'])
+def test_failed_access_renewal_blocks_success_and_automatic_retry(app, monkeypatch, failure):
+    real_share = TransferGrades.share
+    client, sid, _ = pipeline(app, monkeypatch)
+    job = post(client, '/generate', data=CONFIG|{'nombre_excel_notas':'source',
+        'reviewed_source':'yes'}).get_json()['batch_id']
+    drive = MagicMock()
+    drive.permissions().list().execute.return_value = {'permissions':[
+        {'id':'student', 'type':'user', 'role':'reader', 'emailAddress':'ana@students.test'}]}
+    getattr(drive.permissions(), failure).return_value.execute.side_effect = RuntimeError('private-google-error')
+    monkeypatch.setattr('app.build', lambda *a, **k:drive)
+    monkeypatch.setattr(TransferGrades, 'share', real_share)
+    response = post(client, '/notify', json={'batch_id':job, 'confirmed':True})
+    assert response.status_code == 409
+    assert b'private-google-error' not in response.data
+    assert app.extensions['store'].job(job, sid)['state'] == 'review_required'
+    assert all(item['status'] == 'pending' for item in response.get_json()['items'])
+    assert post(client, '/notify', json={'batch_id':job, 'confirmed':True}).status_code == 409
+    drive.permissions().delete.assert_called_once()
+    if failure == 'delete':
+        drive.permissions().create.assert_not_called()
+    else:
+        drive.permissions().create.assert_called_once()
+
+
+def test_share_never_removes_owner_or_third_party_permissions():
+    for permission in [
+        {'id':'owner', 'type':'user', 'role':'owner', 'emailAddress':'ana@students.test'},
+        {'id':'other', 'type':'user', 'role':'reader', 'emailAddress':'other@students.test'},
+    ]:
+        drive = MagicMock()
+        drive.permissions().list().execute.return_value = {'permissions':[permission]}
+        with pytest.raises(InputError):
+            TransferGrades(drive).share({'folder_id':'folder', 'file_id':'file', 'email':'ana@students.test'})
+        drive.permissions().delete.assert_not_called()
+        drive.permissions().create.assert_not_called()

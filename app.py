@@ -218,7 +218,7 @@ def create_app(config=None):
             return jsonify(status='success')
         except Exception:
             store.save_job(job, payload, 'review_required')
-            return jsonify(error='El reparto puede ser parcial. Revisa los permisos en Drive; este lote no se reenvía automáticamente.', items=payload['items']), 409
+            return jsonify(error='El reparto puede ser parcial. Al renovar un acceso, puede haberse retirado el permiso sin llegar a restablecerlo. Revisa los permisos en Drive; este lote no se reenvía automáticamente.', items=payload['items']), 409
 
     @app.post('/logout')
     def logout():

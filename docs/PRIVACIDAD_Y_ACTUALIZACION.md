@@ -39,6 +39,8 @@ flowchart TD
 
 ## Permisos de Google
 
+Al confirmar cada reparto se solicita una notificación por destinatario mediante Drive. Para una carpeta ya compartida se retira y recrea solo el permiso lector del alumno; se conservan los archivos y los permisos directos de sus documentos. Esto puede interrumpir brevemente el acceso heredado. Si la recreación falla, el permiso puede quedar retirado: revisar Drive y restablecerlo manualmente. El lote queda bloqueado para evitar reenvíos automáticos. No se usa Gmail API ni se amplían los alcances OAuth; la aceptación de la solicitud por Google no confirma la recepción del correo.
+
 Se ha sustituido el acceso total de escritura a Drive por `drive.readonly` (buscar y leer originales) más `drive.file` (crear y compartir documentos de la aplicación), junto a OpenID y correo. **La lectura sigue siendo amplia sobre los archivos accesibles a la cuenta** y debe justificarse ante el centro y en la configuración OAuth. Una futura selección con Google Picker permitiría estudiar la eliminación de `drive.readonly`; no está implementada.
 
 Referencias técnicas: [alcances de Drive](https://developers.google.com/workspace/drive/api/guides/api-specific-auth), [verificación de identidad Google](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token), [roles y permisos](https://developers.google.com/workspace/drive/api/guides/ref-roles). Los permisos concedidos a la versión antigua pueden seguir vigentes en Google: revocar la autorización anterior y solicitar de nuevo únicamente los alcances actuales.

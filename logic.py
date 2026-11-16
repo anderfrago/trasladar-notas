@@ -277,9 +277,16 @@ class TransferGrades:
             elif not existing:
                 self.drive.permissions().create(fileId=item['file_id'],
                     body={'type':'user', 'emailAddress':email, 'role':'commenter'},
-                    sendNotificationEmail=True, fields='id').execute()
-        if not any(p.get('type') == 'user' and p.get('emailAddress', '').lower() == email
-                   for p in self.permissions(item['folder_id'])):
-            self.drive.permissions().create(fileId=item['folder_id'],
-                body={'type':'user', 'emailAddress':email, 'role':'reader'},
-                sendNotificationEmail=True, fields='id').execute()
+                    sendNotificationEmail=False, fields='id').execute()
+        existing = next((p for p in self.permissions(item['folder_id'])
+            if p.get('type') == 'user' and p.get('emailAddress', '').lower() == email), None)
+        if existing:
+            if existing.get('role') == 'owner':
+                raise InputError('No se puede renovar el acceso del propietario de la carpeta.')
+            # Recreate only the student's folder access to request a new email.
+            # Keep file IDs, contents and direct document permissions untouched.
+            self.drive.permissions().delete(fileId=item['folder_id'],
+                permissionId=existing['id']).execute()
+        self.drive.permissions().create(fileId=item['folder_id'],
+            body={'type':'user', 'emailAddress':email, 'role':'reader'},
+            sendNotificationEmail=True, fields='id').execute()
