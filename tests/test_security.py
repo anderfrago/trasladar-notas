@@ -128,13 +128,45 @@ def test_reviewed_header_template_preserves_complex_layout_only():
     assert out.active.column_dimensions['B'].hidden
     assert out.active['A2'].value=='Ana' and out.active['B2'].value=='ana@students.test'
 
-def test_template_rejects_content_below_header():
+def test_template_ignores_content_below_header():
     template_wb=openpyxl.Workbook(); template_ws=template_wb.active
     template_ws['A1']='Cabecera'; template_ws['A2']='Otro alumno'
+    template_ws['D2']='Dato fuera de las columnas del original'
+    template_ws['D2'].comment=Comment('Comentario privado', 'Autor')
+    template_ws['D2'].hyperlink='https://private.invalid'
+    template_ws['A20']='Otro alumno oculto'
+    template_ws.row_dimensions[20].hidden=True
+    template_ws.merge_cells('A2:A4')
+    template_wb.create_sheet('Otra').append(['Datos privados'])
     template=io.BytesIO(); template_wb.save(template); template.seek(0)
-    with pytest.raises(InputError):
-        TransferGrades(None).copy_grades(workbook(),CONFIG|{'plantilla_cabecera':'plantilla'},
-            {'students.test'},template)
+    items=TransferGrades(None).copy_grades(workbook(),CONFIG|{'plantilla_cabecera':'plantilla'},
+        {'students.test'},template)
+    assert len(items)==2
+    for item in items:
+        out=openpyxl.load_workbook(item['content'])
+        assert out.sheetnames==['Evaluación']
+        assert out.active.max_row==2
+        assert out.active['A1'].value=='Cabecera'
+        assert out.active['A2'].value==item['name']
+        assert out.active['D2'].value is None
+        assert out.active['D2'].comment is None
+        assert out.active['D2'].hyperlink is None
+        assert not out.active.merged_cells.ranges
+        assert 20 not in out.active.row_dimensions
+        out.close()
+
+
+def test_template_merge_crossing_header_does_not_cover_student_row():
+    template_wb=openpyxl.Workbook()
+    template_wb.active.merge_cells('A1:C3')
+    template_wb.active['A1']='Cabecera'
+    template=io.BytesIO(); template_wb.save(template); template.seek(0)
+    items=TransferGrades(None).copy_grades(workbook(),CONFIG,{'students.test'},template)
+    out=openpyxl.load_workbook(items[0]['content'])
+    assert 'A1:C1' in out.active.merged_cells
+    assert out.active['A2'].value=='Ana'
+    assert out.active['B2'].value=='ana@students.test'
+    out.close()
 
 def test_concurrent_processing_isolated():
     def run(name):

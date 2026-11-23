@@ -80,15 +80,41 @@ class TransferGrades:
                         raise InputError('La plantilla descomprimida supera 100 MB.')
                 template.seek(0)
                 template_bytes = template.read()
-                check = openpyxl.load_workbook(io.BytesIO(template_bytes), data_only=False, keep_links=False)
+                check = openpyxl.load_workbook(io.BytesIO(template_bytes), data_only=True, keep_links=False)
+                clean = openpyxl.Workbook()
                 try:
                     template_ws = check[sheet] if sheet in check.sheetnames else check.active
                     if template_ws.max_column > 200:
                         raise InputError('La plantilla supera el máximo de 200 columnas.')
-                    for row_cells in template_ws.iter_rows(min_row=header + 1):
-                        if any(cell.value is not None or cell.comment or cell.hyperlink for cell in row_cells):
-                            raise InputError('La plantilla solo puede contener datos en las filas de cabecera.')
+                    # Rebuild from the header only so data, drawings and other
+                    # workbook objects below it cannot leak into student copies.
+                    clean_ws = clean.active
+                    clean_ws.title = template_ws.title
+                    clean_ws.sheet_format = copy(template_ws.sheet_format)
+                    for key, dimension in template_ws.column_dimensions.items():
+                        clean_ws.column_dimensions[key] = copy(dimension)
+                    for index in range(1, header + 1):
+                        if index in template_ws.row_dimensions:
+                            clean_ws.row_dimensions[index] = copy(template_ws.row_dimensions[index])
+                        for old in template_ws[index]:
+                            if isinstance(old, openpyxl.cell.cell.MergedCell):
+                                continue
+                            cell = clean_ws.cell(index, old.column, old.value)
+                            if isinstance(old.value, str):
+                                cell.data_type = 's'
+                            cell._style = copy(old._style)
+                            if old.comment:
+                                cell.comment = Comment(old.comment.text, 'Docente')
+                    for merged in template_ws.merged_cells.ranges:
+                        if merged.min_row <= header:
+                            clean_ws.merge_cells(start_row=merged.min_row,
+                                end_row=min(merged.max_row, header),
+                                start_column=merged.min_col, end_column=merged.max_col)
+                    prepared = io.BytesIO()
+                    clean.save(prepared)
+                    template_bytes = prepared.getvalue()
                 finally:
+                    clean.close()
                     check.close()
             results, seen, total_size = [], set(), 0
             for row in range(header + 1, ws.max_row + 1):
