@@ -128,9 +128,9 @@ class TransferGrades:
                     for col in range(1, ws.max_column + 1):
                         old = ws.cell(origin, col)
                         val = cached.cell(origin, col).value
-                        if old.data_type == 'f' and val is None:
-                            raise InputError('Hay fórmulas sin resultado guardado. Recalcula y guarda el original.')
-                        cell = out.cell(target, col, val)
+                        # Copy saved values only; a formula without a cache is blank.
+                        cell = out.cell(target, col)
+                        cell.value = val
                         if isinstance(val, str):
                             cell.data_type = 's'
                         if old.has_style:

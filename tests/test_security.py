@@ -1,6 +1,8 @@
 import io
 import json
 import time
+import zipfile
+from xml.etree import ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
@@ -63,7 +65,6 @@ def test_individual_workbooks():
     [['N','C','V'],['Ana','ana@external.test',1]],
     [['N','C','V'],['Ana','ana@students.test',1],['Otra','ana@students.test',2]],
     [['N','C','V'],['Ana','',1]],
-    [['N','C','V'],['Ana','ana@students.test','=1+1']],
 ])
 def test_bad_source_rejected(rows):
     with pytest.raises(InputError):
@@ -84,6 +85,36 @@ def test_literal_not_formula():
     item=TransferGrades(None).copy_grades(source,CONFIG,{'students.test'})[0]
     out=openpyxl.load_workbook(item['content'])
     assert out.active['C2'].data_type=='s'
+
+
+@pytest.mark.parametrize('saved_value', [None, 0, 2])
+def test_formulas_copy_saved_values_without_blocking(saved_value):
+    source = workbook([['N','C','V'], ['Ana','ana@students.test','=1+1'],
+        ['Luis','luis@students.test',8]])
+    # Excel stores formula results separately; openpyxl does not calculate them.
+    prepared = io.BytesIO()
+    with zipfile.ZipFile(source) as original, zipfile.ZipFile(prepared, 'w') as output:
+        for entry in original.infolist():
+            data = original.read(entry.filename)
+            if entry.filename == 'xl/worksheets/sheet1.xml':
+                root = ET.fromstring(data)
+                ns = {'s':'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+                value = root.find('.//s:c[@r="C2"]/s:v', ns)
+                value.text = None if saved_value is None else str(saved_value)
+                data = ET.tostring(root)
+            output.writestr(entry, data)
+    prepared.seek(0)
+    items = TransferGrades(None).copy_grades(prepared, CONFIG, {'students.test'})
+    assert len(items) == 2
+    with_formula = openpyxl.load_workbook(items[0]['content'])
+    assert with_formula.active['C2'].value == saved_value
+    assert with_formula.active['C2'].data_type != 'f'
+    assert with_formula.active['C2'].font.bold
+    assert with_formula.active['C2'].comment.text == 'Comentario individual'
+    other = openpyxl.load_workbook(items[1]['content'])
+    assert other.active['C2'].value == 8
+    with_formula.close()
+    other.close()
 
 def test_reviewed_header_template_preserves_complex_layout_only():
     template_wb=openpyxl.Workbook(); template_ws=template_wb.active
