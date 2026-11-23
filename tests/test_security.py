@@ -156,6 +156,39 @@ def test_template_ignores_content_below_header():
         out.close()
 
 
+def test_template_styles_are_registered_in_new_workbook():
+    from openpyxl.styles import Border, Side, PatternFill, Alignment
+    template_wb = openpyxl.Workbook()
+    ws = template_wb.active
+    ws['A1'] = 'Cabecera'
+    ws['A1'].font = Font(name='Arial', bold=True, color='123456')
+    ws['A1'].fill = PatternFill('solid', fgColor='ABCDEF')
+    ws['A1'].border = Border(bottom=Side(style='thin', color='654321'))
+    ws['A1'].alignment = Alignment(horizontal='center')
+    ws['A1'].number_format = '0.0000" puntos"'
+    ws.column_dimensions['A'].font = Font(italic=True, color='112233')
+    ws.column_dimensions['A'].width = 27
+    ws.row_dimensions[1].font = Font(bold=True, color='445566')
+    ws.row_dimensions[1].height = 30
+    template = io.BytesIO()
+    template_wb.save(template)
+    template.seek(0)
+    items = TransferGrades(None).copy_grades(workbook(), CONFIG, {'students.test'}, template)
+    out = openpyxl.load_workbook(items[0]['content'])
+    cell = out.active['A1']
+    assert cell.font.name == 'Arial' and cell.font.bold
+    assert cell.fill.fgColor.rgb == '00ABCDEF'
+    assert cell.border.bottom.style == 'thin'
+    assert cell.alignment.horizontal == 'center'
+    assert cell.number_format == '0.0000" puntos"'
+    assert out.active.column_dimensions['A'].font.italic
+    assert out.active.column_dimensions['A'].width == 27
+    assert out.active.row_dimensions[1].font.color.rgb == '00445566'
+    assert out.active.row_dimensions[1].height == 30
+    assert out.active['A2'].value == 'Ana'
+    out.close()
+
+
 def test_template_merge_crossing_header_does_not_cover_student_row():
     template_wb=openpyxl.Workbook()
     template_wb.active.merge_cells('A1:C3')

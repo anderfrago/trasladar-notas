@@ -18,6 +18,12 @@ class InputError(ValueError):
 def quote(value):
     return value.replace('\\', '\\\\').replace("'", "\\'")
 
+def copy_style(source, target):
+    # Style IDs belong to their workbook; register components in the destination.
+    for attr in ('font', 'fill', 'border', 'alignment', 'number_format', 'protection'):
+        setattr(target, attr, copy(getattr(source, attr)))
+
+
 class TransferGrades:
     def __init__(self, drive):
         self.drive = drive
@@ -92,17 +98,26 @@ class TransferGrades:
                     clean_ws.title = template_ws.title
                     clean_ws.sheet_format = copy(template_ws.sheet_format)
                     for key, dimension in template_ws.column_dimensions.items():
-                        clean_ws.column_dimensions[key] = copy(dimension)
+                        cloned = copy(dimension)
+                        cloned.parent = clean_ws
+                        cloned._style = None
+                        copy_style(dimension, cloned)
+                        clean_ws.column_dimensions[key] = cloned
                     for index in range(1, header + 1):
                         if index in template_ws.row_dimensions:
-                            clean_ws.row_dimensions[index] = copy(template_ws.row_dimensions[index])
+                            dimension = template_ws.row_dimensions[index]
+                            cloned = copy(dimension)
+                            cloned.parent = clean_ws
+                            cloned._style = None
+                            copy_style(dimension, cloned)
+                            clean_ws.row_dimensions[index] = cloned
                         for old in template_ws[index]:
                             if isinstance(old, openpyxl.cell.cell.MergedCell):
                                 continue
                             cell = clean_ws.cell(index, old.column, old.value)
                             if isinstance(old.value, str):
                                 cell.data_type = 's'
-                            cell._style = copy(old._style)
+                            copy_style(old, cell)
                             if old.comment:
                                 cell.comment = Comment(old.comment.text, 'Docente')
                     for merged in template_ws.merged_cells.ranges:
@@ -160,8 +175,7 @@ class TransferGrades:
                         if isinstance(val, str):
                             cell.data_type = 's'
                         if old.has_style:
-                            for attr in ('font', 'fill', 'border', 'alignment', 'number_format', 'protection'):
-                                setattr(cell, attr, copy(getattr(old, attr)))
+                            copy_style(old, cell)
                         if old.comment:
                             cell.comment = Comment(old.comment.text, 'Docente')
                 data = io.BytesIO()
